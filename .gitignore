@@ -1,0 +1,24 @@
+# Android / Gradle
+android/.gradle/
+android/build/
+android/*/build/
+android/local.properties
+android/.kotlin/
+*.apk
+*.aab
+*.jks
+*.keystore
+keystore.properties
+
+# .NET
+windows/**/bin/
+windows/**/obj/
+windows/.vs/
+*.user
+
+# Windows
+Thumbs.db
+desktop.ini
+
+# Salidas de empaquetado
+dist/

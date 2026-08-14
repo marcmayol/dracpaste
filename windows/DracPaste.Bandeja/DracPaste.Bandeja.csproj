@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>DracPaste</AssemblyName>
+    <RootNamespace>DracPaste.Bandeja</RootNamespace>
+    <ApplicationIcon>Recursos\dracpaste.ico</ApplicationIcon>
+    <Product>DracPaste</Product>
+    <Company>marcmayol.com</Company>
+    <Version>0.1.0</Version>
+    <!-- Sin telemetria: ni la app ni su compilacion informan a nadie. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- El .ico lo genera Recursos-fuente\generar-icono.ps1; se copia junto al exe
+         porque ContextoBandeja lo carga desde disco para el icono de la bandeja. -->
+    <Content Include="Recursos\dracpaste.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\DracPaste.Protocolo\DracPaste.Protocolo.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Makaretu.Dns.Multicast" Version="0.27.0" />
+    <PackageReference Include="QRCoder" Version="1.8.0" />
+  </ItemGroup>
+
+</Project>

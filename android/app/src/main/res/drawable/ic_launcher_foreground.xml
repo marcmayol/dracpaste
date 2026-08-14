@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Un portapapeles con dos flechas enfrentadas: lo que va y lo que viene. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Cuerpo del portapapeles -->
+    <path
+        android:fillColor="#D9A441"
+        android:pathData="M38,30 L70,30 A6,6 0 0 1 76,36 L76,80 A6,6 0 0 1 70,86 L38,86 A6,6 0 0 1 32,80 L32,36 A6,6 0 0 1 38,30 Z" />
+    <!-- Pinza superior -->
+    <path
+        android:fillColor="#D9A441"
+        android:pathData="M46,22 L62,22 A4,4 0 0 1 66,26 L66,32 A2,2 0 0 1 64,34 L44,34 A2,2 0 0 1 42,32 L42,26 A4,4 0 0 1 46,22 Z" />
+    <!-- Flecha hacia la derecha (PC -> móvil) -->
+    <path
+        android:fillColor="#0F3A2E"
+        android:pathData="M40,50 L62,50 L62,44 L72,54 L62,64 L62,58 L40,58 Z" />
+    <!-- Flecha hacia la izquierda (móvil -> PC) -->
+    <path
+        android:fillColor="#0F3A2E"
+        android:pathData="M68,72 L46,72 L46,66 L36,76 L46,86 L46,80 L68,80 Z" />
+</vector>
