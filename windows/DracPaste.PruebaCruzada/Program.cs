@@ -30,7 +30,7 @@ internal static class Program
 
         try
         {
-            return await EjecutarAsync(carpeta).ConfigureAwait(false);
+            return await EjecutarAsync(carpeta, args).ConfigureAwait(false);
         }
         finally
         {
@@ -46,7 +46,7 @@ internal static class Program
         }
     }
 
-    private static async Task<int> EjecutarAsync(string carpeta)
+    private static async Task<int> EjecutarAsync(string carpeta, string[] args)
     {
         var identidad = Identidad.CargarOCrear(carpeta);
         var registro = RegistroEmparejados.Cargar(carpeta);
@@ -59,9 +59,11 @@ internal static class Program
         servidor.DispositivoEmparejado += d =>
             Console.WriteLine($"EMPAREJADO: {d.Nombre} · huella {d.Huella}");
 
-        // Puerto efímero: la prueba no debe pelearse con una instancia real de DracPaste
-        // que el usuario tenga abierta.
-        servidor.Arrancar(puertoPreferido: 0);
+        // Puerto efímero por defecto: la prueba no debe pelearse con una instancia real
+        // de DracPaste que el usuario tenga abierta. Se puede fijar uno para poder
+        // redirigirlo con `adb reverse` y probar contra el APK del emulador.
+        var puerto = args.Length > 0 && int.TryParse(args[0], out var elegido) ? elegido : 0;
+        servidor.Arrancar(puertoPreferido: puerto);
 
         var qr = new DatosQr
         {
@@ -69,7 +71,9 @@ internal static class Program
             Ip = "127.0.0.1",
             Port = servidor.Puerto,
             Token = Convert.ToBase64String(tokens.Emitir()),
-            Name = "PC de prueba",
+            // Sin espacios a propósito: así el JSON se puede teclear con `adb shell
+            // input text` para probar contra el APK real del emulador.
+            Name = "PC-de-prueba",
             DeviceId = identidad.DeviceId,
         };
 

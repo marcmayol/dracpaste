@@ -4,8 +4,11 @@ Portapapeles compartido entre Android y Windows, **sin nube, sin cuenta y sin te
 Los dispositivos hablan directamente por la red local, cifrados de extremo a extremo, y la
 identidad es el propio par de dispositivos emparejados: no hay servidor de nadie en medio.
 
-> Estado: en desarrollo. Ver [`PROGRESS.md`](PROGRESS.md) para saber qué funciona ya y qué
-> pruebas quedan pendientes de hacer con hardware real.
+> **Estado**: las siete fases del plan están implementadas. 254 tests en verde, instalador
+> de Windows y APK generados. Antes de distribuirlo faltan la keystore de firma y las
+> pruebas con un móvil real: ver [`PROGRESS.md`](PROGRESS.md).
+>
+> Si solo quieres usarlo, ve a la [guía de uso](docs/guia-de-uso.md).
 
 ## Cómo funciona
 
@@ -72,6 +75,32 @@ $env:PATH = "$env:USERPROFILE\.dotnet;$env:PATH"
 ```
 
 El motivo está en [`docs/decisions.md`](docs/decisions.md) D-001.
+
+### Publicar
+
+```powershell
+# Instalador de Windows -> dist\DracPaste-<version>-instalador.exe
+powershell -ExecutionPolicy Bypass -File scripts\publicar-windows.ps1
+
+# APK firmado -> dist\DracPaste-<version>.apk
+# La primera vez crea la keystore y pide una contraseña. Guárdala: sin ella no se
+# pueden publicar actualizaciones que Android acepte encima de la versión instalada.
+powershell -ExecutionPolicy Bypass -File scripts\publicar-android.ps1
+```
+
+Los dos scripts se niegan a publicar si hay algún test en rojo.
+
+### Comprobar que los dos lados se entienden
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\prueba-cruzada.ps1
+```
+
+Arranca el servidor real de Windows y lanza contra él un cliente Kotlin que se empareja,
+abre sesión y cruza un clip en cada dirección. Es lo único que demuestra que Bouncy Castle
+(Android) y libsodium (Windows) se entienden **por un socket de verdad**: los vectores de
+`docs/protocol.md` prueban que dan los mismos bytes, pero no que el diálogo completo
+funcione entre dos lenguajes. Conviene lanzarla antes de cada versión.
 
 ### Regenerar el icono de Windows
 

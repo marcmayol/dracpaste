@@ -759,3 +759,224 @@ reiniciar nada.
 *Resultado esperado*: llega. Si no llega pero sí lo hace al desbloquear el móvil, el
 sistema mató el servicio y la exención de batería no bastó: apuntar el fabricante y la
 versión de Android.
+
+---
+
+## Fase 6 · Empaquetado — CERRADA (2026-08-15)
+
+### Qué se hizo
+
+**Instalador de Windows** (`windows/instalador/DracPaste.iss`, Inno Setup 6). Generado y
+verificado: `dist/DracPaste-0.1.0-instalador.exe`, **49,3 MB**.
+
+- Publicación **autocontenida**: trae su propio runtime, así que el usuario no tiene que
+  instalar .NET antes. Es la primera piedra con la que tropieza quien solo quiere una app.
+- **Instalación por usuario, sin pedir administrador**: la identidad se cifra con DPAPI del
+  usuario actual, así que una instalación para toda la máquina no aportaría nada y solo
+  añadiría una petición de permisos que asusta.
+- Casilla de arranque con el inicio de sesión.
+- Al desinstalar, **pregunta** si borrar las claves en vez de hacerlo por su cuenta: quien
+  reinstala no debería perder los emparejamientos de todos sus móviles por sorpresa.
+
+Se eligió Inno Setup y no MSIX porque MSIX exige firmar con un certificado de confianza:
+sin él, Windows rechaza el paquete y no hay forma de instalarlo. Un instalador clásico sin
+firmar solo enseña el aviso de SmartScreen, que el usuario puede saltarse. Como esto se
+distribuye fuera de la Store, es la única vía practicable.
+
+**Firma del APK** (`scripts/publicar-android.ps1`). El script crea la keystore la primera
+vez —preguntando la contraseña—, compila el APK de publicación, y **comprueba que va
+firmado con la clave correcta**: un `keystore.properties` mal leído produce un APK firmado
+con la clave de depuración, y eso no se nota hasta que falla la instalación en el móvil.
+
+**La keystore no se ha creado.** Es lo único que queda pendiente de la fase y es
+deliberado: una clave de firma es del usuario y su contraseña la tiene que elegir él. Ver
+abajo.
+
+**Documentación de usuario final**: `docs/guia-de-uso.md`, escrita para alguien que no ha
+leído el plan. Explica la asimetría de Android como lo que es —una limitación del sistema,
+no un defecto de la app— y dedica una sección a qué hace y qué **no** hace con los datos.
+
+### Verificado automáticamente
+
+| Comprobación | Resultado |
+|---|---|
+| Instalador generado con Inno Setup | `DracPaste-0.1.0-instalador.exe`, 49,3 MB |
+| `dotnet publish` autocontenido | 162 MB en `dist/publicado`, ejecuta |
+| `gradlew :app:assembleRelease` | APK de 25,5 MB con R8 |
+| APK de publicación instalado y arrancado en el emulador | Sin errores en logcat |
+| Serializadores del protocolo tras R8 (`apkanalyzer`) | Conservados con su nombre |
+| Tests, ambos lados | 129 Android + 125 Windows, 0 fallos |
+
+### Dos cosas que aparecieron al empaquetar
+
+**1. Medio megabyte de código muerto en el APK.** Las reglas de R8 que venían del esqueleto
+incluían un `-keep class org.bouncycastle.jcajce.provider.**` "por si acaso". Al mirar el
+DEX con `apkanalyzer` resultó que conservaba **4.050 clases** del proveedor JCE de Bouncy
+Castle que la app no toca: DracPaste usa la API de bajo nivel y la llama directamente,
+precisamente para no depender de reflexión (`docs/decisions.md` D-003).
+
+Quitada esa regla, el APK baja de 27,5 MB a **25,5 MB**. Las reglas que sí importan —las de
+kotlinx.serialization, que genera los serializadores por nombre de clase— se han verificado
+en el DEX del APK real: siguen ahí con su nombre completo.
+
+**2. Los tests instrumentados no pueden correr sobre el build de publicación.** Se intentó
+(`testBuildType = "release"`) para comprobar de paso que R8 no rompía el cifrado, pero al
+minificar también el APK de test, el runner de AndroidX se queda sin métodos que busca por
+reflexión y la instrumentación no llega ni a arrancar. Se ha vuelto a dejar en depuración,
+donde su valor real es otro: probar el **Android Keystore de verdad**, que no existe en el
+JVM.
+
+### Pruebas manuales pendientes
+
+**M6.1 · Crear la keystore de firma** *(hay que hacerlo antes de distribuir nada)*
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\publicar-android.ps1
+```
+
+Pedirá una contraseña y creará `%USERPROFILE%\dracpaste-release.jks`.
+
+> **Guarda esa keystore y su contraseña donde no se pierdan.** Sin ellas no se puede
+> publicar ninguna actualización que Android acepte encima de la versión ya instalada: la
+> única salida sería desinstalar y volver a empezar, perdiendo los emparejamientos.
+
+No se ha creado de forma automática a propósito: la contraseña de una clave de firma la
+elige su dueño.
+
+**M6.2 · El APK de publicación empareja de verdad** *(prueba crítica)*
+
+Con el APK firmado ya instalado en un móvil real, hacer el emparejamiento completo (M4.1) y
+enviar un clip en cada dirección.
+
+**Por qué esta prueba no se puede saltar**: es la única que demuestra que R8 no ha roto el
+cifrado ni la serialización. Un fallo aquí sería de los más caros posibles —una app que
+instala bien, arranca bien y no empareja nunca, sin ningún error que explique por qué— y
+**solo se manifiesta en la versión que se publica**, nunca en la de depuración.
+
+Se intentó automatizar sobre el emulador, pero introducir el JSON del emparejamiento por
+`adb shell input text` no es viable: entre PowerShell, adb y el shell de Android, las
+comillas dobles del JSON se pierden por el camino. Lo que sí quedó comprobado
+automáticamente es que el APK minificado instala, arranca sin errores y conserva los
+serializadores.
+
+**M6.3 · Instalación limpia siguiendo solo la documentación**
+
+En un PC y un móvil donde DracPaste no haya estado nunca, seguir `docs/guia-de-uso.md` de
+principio a fin **sin consultar nada más**, y anotar cualquier punto donde haga falta
+adivinar algo. Es el criterio de aceptación de la fase.
+
+**M6.4 · Desinstalar y volver a instalar conserva los emparejamientos**
+
+1. Desinstalar DracPaste del PC y responder **«No»** a la pregunta de borrar las claves.
+2. Volver a instalarlo.
+
+*Resultado esperado*: el móvil se reconecta solo, sin volver a emparejar.
+
+Repetir respondiendo **«Sí»**: entonces el móvil debe quedarse en «Sin emparejar» y hacer
+falta un código nuevo.
+
+---
+
+# Resumen final
+
+## Estado global
+
+**Las siete fases del plan están implementadas y cerradas.** DracPaste funciona en los dos
+sentidos, cifrado de extremo a extremo, sin nube ni cuentas, con instalador para Windows y
+APK para Android.
+
+| | Estado |
+|---|---|
+| Fases 0–6 | Cerradas |
+| Tests automáticos | **254 en verde** (129 Android, 125 Windows), 0 fallos |
+| Prueba cruzada Kotlin ↔ C# por socket real | Superada |
+| Instalador de Windows | Generado, 49,3 MB |
+| APK de publicación | Generado, 25,5 MB — **falta firmarlo con la keystore definitiva** |
+| Documentación de usuario | `docs/guia-de-uso.md` |
+
+**Lo único que impide distribuir hoy mismo** es la keystore de firma de Android (M6.1), que
+no se ha creado a propósito porque su contraseña la tiene que elegir el usuario.
+
+## Lo que se probó y lo que no
+
+Todo lo que no depende de hardware está cubierto por tests que corren en segundos: el
+protocolo entero, el cifrado con vectores del RFC, el framing, el anti-replay, el bucle de
+eco simulado con los dos dispositivos, la máquina de estados con sus 16 transiciones, el
+handshake y el emparejamiento sobre sockets de loopback, el servidor real atendido por un
+cliente que hace lo mismo que hará el móvil, y la interoperabilidad entre las dos
+implementaciones.
+
+Lo que **no** se ha podido probar es lo que exige un móvil físico, una red WiFi de verdad y
+tiempo: reconexiones medidas en segundos, supervivencia del servicio durante la noche,
+comportamiento de cada fabricante y latencia percibida. Todo eso está listado arriba, fase
+por fase, con pasos exactos.
+
+## Riesgos detectados durante la implementación
+
+**1. El APK de publicación no se ha probado emparejando.** Es el riesgo mayor que queda.
+R8 puede romper la serialización o el cifrado de formas que no dan ningún error visible, y
+solo ocurren en la versión que se publica. Se ha mitigado verificando en el DEX que los
+serializadores sobreviven y que el APK arranca, pero **no sustituye a M6.2**.
+
+**2. Los fabricantes que matan servicios.** El plan ya lo anticipaba y la app trae guía por
+marca, pero es una carrera que no se gana del todo: cada versión de MIUI o One UI cambia
+dónde está el ajuste. Si el usuario final es un Pixel, el riesgo es bajo.
+
+**3. mDNS en redes hostiles.** Si el router aísla clientes, DracPaste no puede funcionar y
+no hay nada que programar contra eso. La app lo dice, pero el usuario podría no entender por
+qué su móvil "no ve" el PC. La conexión manual por IP prevista en el plan §7 **no está
+implementada**: se decidió no añadirla mientras no aparezca el caso, porque el QR ya lleva
+la IP y en la práctica el emparejamiento inicial funciona aunque mDNS no.
+
+**4. Sin cola de clips, por decisión del plan.** Si no hay conexión al enviar, el clip se
+pierde. Es lo correcto —algo copiado hace horas apareciendo de pronto sería peor— pero
+conviene comprobar en uso real que el aviso «Sin conexión con [PC]» se ve lo bastante.
+
+**5. El instalador no está firmado.** SmartScreen avisará en cada instalación. Un
+certificado de firma de código cuesta dinero; mientras no lo haya, la guía explica cómo
+saltarse el aviso.
+
+**6. Kotlin y C# comparten protocolo pero no código.** Cualquier cambio futuro hay que
+hacerlo dos veces. Los vectores compartidos y la prueba cruzada detectarían una divergencia,
+pero solo si se ejecutan: conviene lanzar `scripts/prueba-cruzada.ps1` antes de cada
+versión.
+
+## Orden recomendado de las pruebas manuales
+
+Están ordenadas para que cada una construya sobre la anterior y para que un fallo temprano
+ahorre el resto.
+
+**Primero, lo que desbloquea todo lo demás:**
+
+1. **M6.1** — crear la keystore de firma. Sin ella no hay APK que instalar en un móvil real.
+2. **M1.1** — emparejar por primera vez, con el APK ya firmado. Si esto falla, nada más
+   tiene sentido.
+3. **M6.2** — comprobar que el APK **de publicación** empareja y mueve clips. Es la
+   verificación de que R8 no ha roto nada.
+
+**Después, lo que la gente usa a diario:**
+
+4. **M2.1** — copiar en el PC y pegar en el móvil.
+5. **M3.1** — el botón de la notificación. *La prueba que no se puede saltar*: si la lectura
+   del portapapeles se hiciera en el momento equivocado, aquí llegaría un clip vacío.
+6. **M3.2** — compartir sin tocar el portapapeles.
+7. **M3.3** — que una contraseña **no** salga del móvil.
+
+**Luego, lo que hace que siga funcionando mañana:**
+
+8. **M1.4** — reconexión tras cortar el WiFi.
+9. **M5.2** y **M5.3** — cambios de red y WiFi apagado un buen rato.
+10. **M5.1** — suspender el PC y despertarlo.
+11. **M5.4** y **M5.5** — reiniciar el móvil y matar el proceso.
+12. **M2.4** y **M5.8** — media hora y una noche entera en segundo plano. Son las que más
+    tardan y las que más dicen sobre si la app es usable de verdad.
+
+**Al final, lo que se hace una vez:**
+
+13. **M4.1**, **M4.2**, **M4.3** — emparejar escaneando, caducidad y desemparejar.
+14. **M4.4** — multi-PC, si hay un segundo PC a mano.
+15. **M1.3** — Wireshark, para ver con los propios ojos que no viaja nada legible.
+16. **M6.3** — instalación limpia siguiendo solo la guía, en un equipo virgen.
+
+**Consejo sobre M5.8 y M2.4**: son las dos pruebas largas y conviene empezarlas pronto y en
+paralelo con el resto, no dejarlas para el final.
