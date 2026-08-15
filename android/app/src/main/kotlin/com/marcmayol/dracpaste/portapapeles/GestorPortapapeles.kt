@@ -72,16 +72,12 @@ class GestorPortapapeles(private val contexto: Context) {
 
     /**
      * Un clip marcado como sensible por quien lo copió: contraseñas, códigos de un solo
-     * uso, tarjetas.
-     *
-     * La constante existe desde Android 13, pero los gestores de contraseñas llevan
-     * usando esa misma cadena desde antes, así que se comprueba por su nombre literal
-     * para respetarla también en Android 10, 11 y 12, que es donde más falta hace.
+     * uso, tarjetas. La regla vive en [MarcadoSensible], que se puede probar sin
+     * dispositivo.
      */
     private fun esSensible(descripcion: ClipDescription?): Boolean {
         val extras = descripcion?.extras ?: return false
-        return extras.getBoolean(EXTRA_SENSIBLE, false) ||
-            extras.getBoolean(EXTRA_SENSIBLE_ANDROIDX, false)
+        return MarcadoSensible.esSensible { clave -> extras.getBoolean(clave, false) }
     }
 
     sealed interface ResultadoLectura {
@@ -94,11 +90,5 @@ class GestorPortapapeles(private val contexto: Context) {
         const val TAG = "DracPaste.Portapapeles"
         const val ETIQUETA = "DracPaste"
         const val EXTRA_PROPIO = "com.marcmayol.dracpaste.PROPIO"
-
-        // ClipDescription.EXTRA_IS_SENSITIVE, disponible como constante desde API 33.
-        const val EXTRA_SENSIBLE = "android.content.extra.IS_SENSITIVE"
-
-        // La variante que usan las librerías de AndroidX y algunos gestores.
-        const val EXTRA_SENSIBLE_ANDROIDX = "androidx.content.extra.IS_SENSITIVE"
     }
 }

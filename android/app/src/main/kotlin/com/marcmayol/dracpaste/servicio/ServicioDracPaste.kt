@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.lifecycle.LifecycleService
@@ -16,7 +17,9 @@ import androidx.lifecycle.lifecycleScope
 import com.marcmayol.dracpaste.R
 import com.marcmayol.dracpaste.datos.AlmacenIdentidad
 import com.marcmayol.dracpaste.datos.RegistroPcs
+import com.marcmayol.dracpaste.portapapeles.ActividadCaptura
 import com.marcmayol.dracpaste.portapapeles.GestorPortapapeles
+import com.marcmayol.dracpaste.protocolo.Protocolo
 import com.marcmayol.dracpaste.protocolo.mensajes.Clip
 import com.marcmayol.dracpaste.protocolo.sesion.AntiEco
 import com.marcmayol.dracpaste.protocolo.sesion.EstadoConexion
@@ -112,6 +115,13 @@ class ServicioDracPaste : LifecycleService() {
                 clipPendienteDePegar = null
                 notificar(null)
             }
+
+            ACCION_ENVIAR_TEXTO -> {
+                val texto = intent.getStringExtra(EXTRA_TEXTO)
+                if (!texto.isNullOrEmpty()) {
+                    enviarAlPc(texto)
+                }
+            }
         }
 
         // START_STICKY: si el sistema mata el proceso por memoria, que lo vuelva a
@@ -139,6 +149,47 @@ class ServicioDracPaste : LifecycleService() {
         } else {
             clipPendienteDePegar = texto
             notificar(null)
+        }
+    }
+
+    /**
+     * Envía al PC un texto que el usuario ha capturado o compartido.
+     *
+     * **Sin cola** (`docs/protocol.md` §8): si no hay conexión, no se guarda nada
+     * pendiente y se dice claramente. Guardar clips para "más tarde" significaría que
+     * algo copiado hace horas aparezca de pronto en el PC cuando el usuario ya no se
+     * acuerda, que es peor que no enviarlo.
+     */
+    private fun enviarAlPc(texto: String) {
+        // El anti-eco es el mismo objeto que usa la recepción: si esto es el eco de un
+        // clip que el PC acaba de mandar, no vuelve.
+        if (!antiEco.debeReenviar(Clip.origenDe(texto))) {
+            return
+        }
+
+        // El tamaño se comprueba aquí y no en el envío para poder decir la verdad: un
+        // clip demasiado grande no es un problema de conexión, y avisar de lo segundo
+        // mandaría al usuario a mirar el WiFi para nada.
+        val bytes = texto.toByteArray(Charsets.UTF_8).size
+        if (bytes > Protocolo.MAX_CLIP_BYTES) {
+            val aviso = "Ese texto ocupa demasiado (${bytes / 1024} KB) y no se ha enviado"
+            notificar(aviso)
+            Toast.makeText(this, aviso, Toast.LENGTH_LONG).show()
+            return
+        }
+
+        lifecycleScope.launch {
+            val nombrePc = registro.activo()?.nombre ?: "el PC"
+
+            val enviado = try {
+                cliente.enviarClip(texto)
+            } catch (e: Exception) {
+                false
+            }
+
+            val aviso = if (enviado) "Enviado a $nombrePc" else "Sin conexión con $nombrePc"
+            notificar(aviso)
+            Toast.makeText(this@ServicioDracPaste, aviso, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -223,6 +274,28 @@ class ServicioDracPaste : LifecycleService() {
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
 
+        // El botón que resuelve la asimetría de Android: como la app no puede leer el
+        // portapapeles sin foco, el usuario da un toque y una ventana invisible lo hace
+        // por él. Solo tiene sentido si hay un PC al que enviar.
+        if (registro.activo() != null) {
+            constructor.addAction(
+                R.drawable.ic_notificacion,
+                "Enviar portapapeles",
+                PendingIntent.getActivity(
+                    this,
+                    2,
+                    Intent(this, ActividadCaptura::class.java).apply {
+                        addFlags(
+                            Intent.FLAG_ACTIVITY_NEW_TASK or
+                                Intent.FLAG_ACTIVITY_NO_ANIMATION or
+                                Intent.FLAG_ACTIVITY_CLEAR_TOP,
+                        )
+                    },
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                ),
+            )
+        }
+
         // Solo aparece cuando el sistema no ha dejado escribir en segundo plano: en el
         // caso normal, el texto ya está en el portapapeles y este botón sobraría.
         if (clipPendienteDePegar != null) {
@@ -257,10 +330,14 @@ class ServicioDracPaste : LifecycleService() {
         const val ACCION_RED_CAMBIADA = "com.marcmayol.dracpaste.RED_CAMBIADA"
         const val ACCION_RELEER_EMPAREJAMIENTO = "com.marcmayol.dracpaste.RELEER_EMPAREJAMIENTO"
         const val ACCION_CLIP_PEGADO = "com.marcmayol.dracpaste.CLIP_PEGADO"
+        const val ACCION_ENVIAR_TEXTO = "com.marcmayol.dracpaste.ENVIAR_TEXTO"
 
-        fun arrancar(contexto: Context, accion: String? = null) {
+        const val EXTRA_TEXTO = "texto"
+
+        fun arrancar(contexto: Context, accion: String? = null, texto: String? = null) {
             val intent = Intent(contexto, ServicioDracPaste::class.java).apply {
                 if (accion != null) this.action = accion
+                if (texto != null) putExtra(EXTRA_TEXTO, texto)
             }
 
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

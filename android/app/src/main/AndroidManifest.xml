@@ -34,6 +34,36 @@
             </intent-filter>
         </activity>
 
+        <!-- La ventana invisible que resuelve la asimetría de Android: desde Android 10
+             solo se puede leer el portapapeles con el foco de pantalla, así que se abre
+             un instante, lee y se cierra. singleTask para que dos toques seguidos en la
+             notificación no apilen dos instancias. -->
+        <activity
+            android:name=".portapapeles.ActividadCaptura"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.DracPaste.Invisible" />
+
+        <!-- DracPaste como destino de «Compartir». Esta vía no toca el portapapeles: el
+             texto llega en el propio intent. -->
+        <activity
+            android:name=".portapapeles.ActividadCompartir"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:label="@string/compartir_con_el_pc"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.DracPaste.Invisible">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity>
+
         <!-- El plan B cuando el fabricante no deja escribir en el portapapeles desde
              segundo plano: una ventana invisible que lo escribe con el foco puesto y se
              cierra. excludeFromRecents para que no aparezca en la lista de apps. -->

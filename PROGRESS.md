@@ -354,3 +354,129 @@ Solo aplica si en el móvil concreto el sistema no deja escribir en segundo plan
 toca para pegarlo» con un botón «Pegar». Al pulsarlo, el texto queda en el portapapeles y
 la notificación vuelve a su estado normal. En un Pixel esto no debería llegar a verse
 nunca.
+
+---
+
+## Fase 3 · Android → Windows — CERRADA (2026-08-15)
+
+### Qué se hizo
+
+**La ventana invisible** (`ActividadCaptura`). Es la pieza que resuelve la asimetría de
+Android: desde Android 10, una app solo puede leer el portapapeles con el foco de pantalla.
+Cuando el usuario pulsa «Enviar portapapeles» en la notificación, se abre una activity
+translúcida que no dibuja nada, no aparece en recientes y vive unos milisegundos: el tiempo
+justo de tener el foco, leer y cerrarse.
+
+**La lectura ocurre en `onWindowFocusChanged`, no en `onCreate`.** Es el riesgo número uno
+de la tabla del plan y merece explicarse: cuando `onCreate` se ejecuta, la ventana todavía
+no tiene el foco, así que el portapapeles devuelve `null` y el clip sale vacío. El fallo no
+da ningún error —simplemente no se envía nada— y no se reproduce de forma fiable en el
+emulador, así que es fácil darlo por bueno sin serlo. Además:
+
+- Se lee **una sola vez** aunque el foco vaya y venga (una notificación que aparezca
+  encima lo provoca), porque leer dos veces enviaría el clip dos veces.
+- Si el foco no llega nunca, `onPause` cierra la activity: no puede quedarse abierta
+  esperando algo que no va a pasar.
+
+**El share target** (`ActividadCompartir`). La vía limpia: DracPaste aparece en el menú
+«Compartir» de cualquier app, y el texto llega en el propio intent, así que **no pasa por
+el portapapeles en ningún momento**. Lo que el usuario tuviera copiado se queda como
+estaba.
+
+**Los clips sensibles no viajan.** Cuando un gestor de contraseñas copia algo, marca el
+clip; DracPaste lo respeta y avisa al usuario de por qué no se ha enviado, en lugar de
+callar y parecer que falla.
+
+### Verificado automáticamente
+
+| Comprobación | Resultado |
+|---|---|
+| `gradlew :protocolo:test` | 99 tests, 0 fallos |
+| `gradlew :app:testDebugUnitTest` | 30 tests, 0 fallos |
+| `gradlew :app:assembleDebug` | Correcto |
+| Manifiesto compilado del APK (`aapt2 dump xmltree`) | Temas, `excludeFromRecents`, `singleTask`, share target y `foregroundServiceType=connectedDevice` correctos |
+
+**La regla de los clips sensibles está fijada por escrito** (`MarcadoSensibleTest`). Se
+extrajo a una función pura precisamente para poder probarla: equivocarse en el nombre de
+una clave no daría ningún error visible —la contraseña viajaría igual— y no hay forma de
+notarlo mirando la app.
+
+Se comprueban las dos cadenas que usan los gestores: la del sistema
+(`android.content.extra.IS_SENSITIVE`) y la de AndroidX. La constante del SDK solo existe
+desde Android 13 y el `minSdk` es 29, así que se usa el valor literal para que la regla
+valga también en Android 10, 11 y 12 — que es donde el sistema no la conoce y nadie más la
+va a mirar.
+
+**El manifiesto tiene sus propios tests** (`ManifiestoTest`). Puede parecer excesivo, pero
+varias decisiones del plan solo existen ahí: si alguien quita `excludeFromRecents`, el
+usuario empieza a ver una ventana fantasma en la lista de apps cada vez que envía un clip;
+si el tema translúcido se cambia por el normal, ve un parpadeo blanco a pantalla completa.
+Ninguna de las dos cosas rompe nada ni da un error, así que nadie se entera hasta probarlo
+a mano.
+
+Se comprueba también que **no se piden permisos de más** (`READ_LOGS`, almacenamiento,
+contactos, ubicación…): en una app cuyo argumento es la privacidad, cada permiso del
+manifiesto es algo que el usuario ve y tiene que creerse.
+
+### Una corrección sobre la marcha
+
+Un clip demasiado grande acababa mostrando «Sin conexión», porque el error de tamaño se
+mezclaba con el de red en el mismo `catch`. Ahora el tamaño se comprueba antes y el aviso
+dice lo que pasa de verdad: mandar al usuario a mirar el WiFi por un texto de 300 KB es
+hacerle perder el tiempo.
+
+### Pruebas manuales pendientes
+
+**M3.1 · El botón de la notificación envía lo copiado** *(prueba crítica)*
+
+1. Copiar un texto en **cualquier app** del móvil (el navegador, unas notas, WhatsApp).
+2. Bajar la barra de notificaciones y pulsar «Enviar portapapeles» en la de DracPaste.
+3. Ir al PC y pegar.
+
+*Resultado esperado*: el texto está ahí, **en menos de un segundo**. No debe verse ningún
+parpadeo ni ninguna ventana al pulsar el botón, y DracPaste **no** debe aparecer en la
+lista de apps recientes.
+
+**Esta es la prueba que no se puede saltar.** Es el riesgo número uno del plan: si la
+lectura se hiciera en `onCreate`, aquí llegaría un clip vacío o no llegaría nada. Conviene
+repetirla desde tres apps distintas y con la pantalla recién desbloqueada.
+
+**M3.2 · Compartir sin tocar el portapapeles**
+
+1. Copiar en el móvil un texto **A** cualquiera.
+2. En otra app, seleccionar un texto **B** y usar «Compartir» → «Enviar al PC».
+3. Pegar en el PC. Después, pegar en el propio móvil.
+
+*Resultado esperado*: en el PC aparece **B**; en el móvil sigue estando **A**. La vía de
+compartir no toca el portapapeles.
+
+**M3.3 · Una contraseña no sale del móvil** *(prueba crítica)*
+
+1. Abrir un gestor de contraseñas (Bitwarden, 1Password, el de Google) y copiar una
+   contraseña con su botón de copiar.
+2. Pulsar «Enviar portapapeles» en la notificación de DracPaste.
+
+*Resultado esperado*: el móvil avisa de que «ese contenido está marcado como sensible y no
+se comparte», y en el PC **no aparece nada**. El portapapeles del PC conserva lo que
+tuviera.
+
+*Ya cubierto parcialmente*: la regla tiene tests. Lo que hay que confirmar a mano es que el
+gestor concreto que usa el usuario marca sus clips, porque no todos lo hacen.
+
+**M3.4 · No hay bucle en la dirección móvil → PC**
+
+1. Enviar un clip desde el móvil con el botón.
+2. Observar el móvil unos segundos.
+
+*Resultado esperado*: el PC recibe el texto y **no lo devuelve**. La notificación del móvil
+no entra en un ciclo de «Enviado / Recibido».
+
+**M3.5 · Sin conexión, el clip no se guarda para luego**
+
+1. Poner el móvil en modo avión.
+2. Pulsar «Enviar portapapeles».
+3. Quitar el modo avión y esperar a que reconecte.
+
+*Resultado esperado*: el móvil dice «Sin conexión con [PC]». Al reconectar, ese texto **no**
+aparece de pronto en el PC. Es la decisión del plan §4.3: sin cola de clips, porque algo
+copiado hace rato apareciendo cuando el usuario ya no se acuerda es peor que no enviarlo.
