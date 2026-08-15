@@ -11,7 +11,7 @@ debug — si algo no cuadra, aborta), creación de la Release en GitHub con el a
 GitHub Pages (commit + push), comprobando después que la URL pública ya sirve el
 versionCode nuevo (reintenta, porque la caché del CDN tarda).
 
-Secretos: la firma sale de keystore.properties (en la raíz, gitignored) o de las
+Secretos: la firma sale de android/keystore.properties (gitignored) o de las
 variables de entorno DRACPASTE_STORE_FILE / DRACPASTE_STORE_PASSWORD / DRACPASTE_KEY_ALIAS /
 DRACPASTE_KEY_PASSWORD, que el propio build.gradle.kts ya sabe leer. Si no hay ninguna de
 las dos fuentes, aborta con mensaje claro. Ningún secreto se escribe en el repo.
@@ -95,7 +95,15 @@ def sha256(ruta: Path) -> str:
 
 
 def _gradlew() -> str:
-    return "gradlew.bat" if os.name == "nt" else "./gradlew"
+    """
+    Ruta absoluta al wrapper.
+
+    Absoluta y no "gradlew.bat" a secas: al lanzarlo con cwd=android/, Windows busca el
+    ejecutable en el directorio del proceso que llama —la raíz del repo— y no en el cwd
+    que se le pasa, así que el relativo no se encuentra.
+    """
+    nombre = "gradlew.bat" if os.name == "nt" else "gradlew"
+    return str(ANDROID / nombre)
 
 
 # Los únicos ficheros que el propio script toca: no cuentan como "cambios sueltos".
@@ -151,7 +159,8 @@ def asegurar_firma() -> None:
     de entorno por sí mismo, así que aquí solo se verifica que exista una de las dos
     fuentes. Así ningún secreto pasa por un fichero temporal.
     """
-    props = RAIZ / "keystore.properties"
+    # En android/, que es donde está el proyecto Gradle que lo lee.
+    props = ANDROID / "keystore.properties"
     if props.exists():
         print("Firma: keystore.properties encontrado.")
         return
@@ -161,7 +170,7 @@ def asegurar_firma() -> None:
         return
     raise SystemExit(
         "Faltan credenciales de firma de DracPaste.\n"
-        "  Opción A: crea keystore.properties en la raíz (está gitignored) con\n"
+        "  Opción A: crea android/keystore.properties (está gitignored) con\n"
         "            storeFile, storePassword, keyAlias y keyPassword.\n"
         f"  Opción B: define las variables de entorno: {', '.join(_ENV_FIRMA)}.\n"
         f"  Ahora mismo faltan: {', '.join(faltan)}."
