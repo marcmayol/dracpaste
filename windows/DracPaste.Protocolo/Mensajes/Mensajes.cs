@@ -244,11 +244,18 @@ public sealed record MensajeDesconocido : Mensaje
 
 public static class CodecMensajes
 {
-    private static readonly JsonSerializerOptions Opciones = new()
+    internal static readonly JsonSerializerOptions Opciones = new()
     {
         // Una versión futura puede añadir campos; no es motivo para cortar la conexión.
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         PropertyNamingPolicy = null,
+
+        // Sin esto, el codificador por defecto escapa '+' como + y todo lo que no
+        // sea ASCII. Los payloads del protocolo van en base64 —donde '+' es un carácter
+        // normal— y los nombres de dispositivo llevan acentos: el mensaje seguiría
+        // siendo JSON válido, pero abultaría el triple y sería ilegible al depurarlo.
+        // "Unsafe" se refiere a incrustar el resultado en HTML, que no es el caso.
+        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
     };
 
     public static byte[] Codificar(Mensaje mensaje)

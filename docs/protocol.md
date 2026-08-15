@@ -199,9 +199,26 @@ Que el móvil consiga descifrarlo demuestra que el PC tiene la misma `K_pair`.
 { "t": "PAIR_ACK", "fingerprint": "A3F2-9C71" }
 ```
 
-**5.** Ambos persisten la clave pública, el `device_id` y el nombre del otro. El PC invalida
-el token. Se cierra la conexión: la sesión de trabajo se abre después con el handshake
-normal (§4).
+**5. El PC guarda y cierra.** Al recibir el `PAIR_ACK`, el PC persiste la clave pública, el
+`device_id` y el nombre del móvil, invalida el token y **cierra la conexión**.
+
+**6. El móvil espera ese cierre.** Tras enviar el `PAIR_ACK`, el móvil **no da el
+emparejamiento por bueno inmediatamente**: sigue leyendo del socket hasta recibir el fin de
+flujo. Solo entonces guarda.
+
+Este último paso no es una formalidad. El `PAIR_ACK` es el último mensaje, así que su emisor
+—el móvil— no tendría forma de saber si llegó. Sin esperar al cierre, un PC que se quede sin
+disco, sin permisos, o que pierda la red justo ahí, dejaría al móvil creyendo que está
+emparejado mientras el PC lo rechaza en cada conexión: el usuario vería "emparejado" en una
+pantalla y "sin emparejar" en la otra, sin ninguna pista de por qué.
+
+Que el PC cierre solo **después** de haber guardado convierte el cierre en un acuse de
+recibo. No es una garantía perfecta —ningún protocolo puede darla para el último mensaje—
+pero cubre todos los fallos que ocurren antes del cierre, que son los que pasan en la
+práctica.
+
+Si el móvil recibe un frame en lugar del cierre, o la conexión se corta de mala manera,
+aborta y no guarda nada.
 
 Si en el paso 3 o 4 el descifrado falla, o las huellas no coinciden, ambos lados abortan y
 **no** guardan nada.
