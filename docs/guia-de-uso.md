@@ -23,7 +23,12 @@ de tu red local.
    un certificado de pago. Pulsa **«Más información» → «Ejecutar de todas formas»**.
 3. Marca «Arrancar DracPaste al iniciar sesión» si quieres que esté siempre listo.
 
-No hace falta ser administrador ni instalar .NET: el instalador trae todo lo necesario.
+No hace falta instalar .NET: el instalador trae todo lo necesario. Sí aparecerá **un aviso
+de administrador**: es para dar permiso a DracPaste en el firewall de Windows. Acéptalo.
+
+Si lo rechazas, la instalación sigue igual, pero el móvil no podrá conectarse: verá el PC
+y la conexión morirá en un tiempo de espera. La app lo detecta al arrancar y te ofrece
+arreglarlo desde su menú («Permitir en el firewall de Windows…»).
 
 Al terminar verás un **icono verde en la bandeja del sistema**, junto al reloj. Ahí vive
 DracPaste: no tiene ventana principal.
@@ -128,6 +133,16 @@ pantalla, es exactamente esto.
 ---
 
 ## Cuando algo no va
+
+**«El PC no responde» al emparejar, pero sé que estamos en la misma red**
+
+Es lo más habitual, y casi siempre es **el firewall de Windows**. Los dos dispositivos se
+ven —el ping funciona— pero el firewall se traga la conexión y desde el móvil eso parece un
+problema de red.
+
+En el PC: menú de DracPaste → **«Permitir en el firewall de Windows…»** y acepta el aviso
+de administrador. Si esa opción no aparece en el menú, es que las reglas ya están puestas y
+el problema es otro.
 
 **«Sin emparejar» y no encuentro el PC**
 Comprueba que los dos están en el mismo WiFi. Algunas redes —hoteles, oficinas, algunos

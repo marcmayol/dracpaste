@@ -63,9 +63,20 @@ class EmparejarConPc(
                 Resultado.Emparejado(pc)
             }
         } catch (e: java.net.SocketTimeoutException) {
-            Resultado.Fallo("El PC no contesta. ¿Están los dos en la misma red?")
+            // Un timeout con el PC visible en la red casi siempre es el firewall: los
+            // paquetes llegan y nadie contesta. Decir solo "¿estáis en la misma red?"
+            // manda al usuario a revisar el WiFi, que suele estar perfectamente.
+            Resultado.Fallo(
+                "El PC no responde en ${qr.ip}:${qr.port}.\n\n" +
+                    "Si DracPaste está abierto en el PC y los dos estáis en la misma red, " +
+                    "casi seguro lo está bloqueando el firewall de Windows: abre el menú de " +
+                    "DracPaste en el PC y pulsa «Permitir en el firewall de Windows…».",
+            )
         } catch (e: java.net.ConnectException) {
-            Resultado.Fallo("No se puede conectar con ${qr.ip}. ¿Sigue encendido DracPaste en el PC?")
+            Resultado.Fallo(
+                "El PC rechaza la conexión en ${qr.ip}:${qr.port}. " +
+                    "¿Sigue abierto DracPaste en el PC?",
+            )
         } catch (e: Exception) {
             // El caso más común aquí es un token caducado: el PC corta sin contestar
             // para no confirmarle nada a quien no ha visto el QR.

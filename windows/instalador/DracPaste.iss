@@ -13,7 +13,7 @@
 #define MiApp "DracPaste"
 ; Debe coincidir con el versionName de android/app/build.gradle.kts: las dos mitades se
 ; publican juntas en la misma Release y tener versiones distintas solo confunde.
-#define MiVersion "1.0"
+#define MiVersion "1.1"
 #define MiAutor "marcmayol.com"
 #define MiEjecutable "DracPaste.exe"
 
@@ -60,7 +60,38 @@ Name: "{group}\{#MiApp}"; Filename: "{app}\{#MiEjecutable}"
 Name: "{userstartup}\{#MiApp}"; Filename: "{app}\{#MiEjecutable}"; Tasks: arranque
 
 [Run]
+; Las reglas del firewall, antes de abrir la app.
+;
+; Sin ellas el movil ve el PC —el ping funciona— pero la conexion TCP muere en un timeout,
+; y desde el movil eso parece un problema de red. Es el fallo mas caro posible: todo
+; parece bien y nada funciona.
+;
+; runascurrentuser NO: crear reglas necesita administrador, y esta instalacion corre sin
+; privilegios. Se eleva solo este paso; si el usuario lo rechaza, la instalacion sigue
+; adelante y la propia app avisa despues y ofrece crearlas desde su menu.
+Filename: "{sys}\netsh.exe"; \
+    Parameters: "advfirewall firewall add rule name=""DracPaste (TCP entrante)"" dir=in action=allow program=""{app}\{#MiEjecutable}"" protocol=TCP localport=47653 profile=private,domain"; \
+    StatusMsg: "Permitiendo DracPaste en el firewall…"; \
+    Flags: runhidden waituntilterminated; \
+    Check: not EsSilencioso
+
+Filename: "{sys}\netsh.exe"; \
+    Parameters: "advfirewall firewall add rule name=""DracPaste (mDNS entrante)"" dir=in action=allow program=""{app}\{#MiEjecutable}"" protocol=UDP localport=5353 profile=private,domain"; \
+    StatusMsg: "Permitiendo el descubrimiento en la red local…"; \
+    Flags: runhidden waituntilterminated; \
+    Check: not EsSilencioso
+
 Filename: "{app}\{#MiEjecutable}"; Description: "Abrir DracPaste"; Flags: nowait postinstall skipifsilent
+
+[UninstallRun]
+; Al desinstalar se quitan: dejar reglas apuntando a un ejecutable que ya no existe es
+; basura en la configuracion del usuario.
+Filename: "{sys}\netsh.exe"; \
+    Parameters: "advfirewall firewall delete rule name=""DracPaste (TCP entrante)"""; \
+    Flags: runhidden; RunOnceId: "BorrarReglaTcp"
+Filename: "{sys}\netsh.exe"; \
+    Parameters: "advfirewall firewall delete rule name=""DracPaste (mDNS entrante)"""; \
+    Flags: runhidden; RunOnceId: "BorrarReglaMdns"
 
 [UninstallDelete]
 ; La identidad y los emparejamientos se quedan a proposito: quien reinstala no tiene que
@@ -68,6 +99,13 @@ Filename: "{app}\{#MiEjecutable}"; Description: "Abrir DracPaste"; Flags: nowait
 Type: dirifempty; Name: "{localappdata}\DracPaste"
 
 [Code]
+// En instalacion silenciosa no se pide elevacion: un aviso de administrador que nadie
+// va a ver dejaria el instalador colgado esperando.
+function EsSilencioso(): Boolean;
+begin
+  Result := WizardSilent;
+end;
+
 // Al desinstalar se ofrece borrar las claves. No se hace sin preguntar: si alguien
 // reinstala, perder los emparejamientos de todos sus moviles seria una sorpresa
 // desagradable.

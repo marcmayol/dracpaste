@@ -14,6 +14,7 @@ internal sealed class ContextoBandeja : ApplicationContext
 {
     private readonly NotifyIcon _icono;
     private readonly ToolStripMenuItem _estadoMenu;
+    private readonly ToolStripMenuItem _avisoCortafuegos;
 
     private readonly Identidad _identidad;
     private readonly RegistroEmparejados _registro;
@@ -33,8 +34,15 @@ internal sealed class ContextoBandeja : ApplicationContext
 
         _estadoMenu = new ToolStripMenuItem("Arrancando…") { Enabled = false };
 
+        _avisoCortafuegos = new ToolStripMenuItem(
+            "Permitir en el firewall de Windows…", null, (_, _) => ArreglarCortafuegos())
+        {
+            Visible = false,
+        };
+
         var menu = new ContextMenuStrip();
         menu.Items.Add(_estadoMenu);
+        menu.Items.Add(_avisoCortafuegos);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add("Emparejar un móvil…", null, (_, _) => AbrirEmparejamiento());
         menu.Items.Add("Ajustes…", null, (_, _) => AbrirAjustes());
@@ -76,6 +84,62 @@ internal sealed class ContextoBandeja : ApplicationContext
         SystemEvents.PowerModeChanged += AlCambiarModoDeEnergia;
 
         MostrarEstado(_registro.Todos.Count == 0 ? "Sin emparejar" : "Esperando al móvil");
+        ComprobarCortafuegos();
+    }
+
+    /// <summary>
+    /// Avisa si el firewall va a impedir que el móvil llegue.
+    ///
+    /// Sin regla, el móvil ve el PC pero la conexión muere en un timeout, y desde el
+    /// móvil eso parece un problema de red. Vale más molestar aquí una vez que dejar al
+    /// usuario mirando el WiFi.
+    /// </summary>
+    private void ComprobarCortafuegos()
+    {
+        var hayRegla = Cortafuegos.HayReglaDeEntrada();
+
+        // null = no se ha podido averiguar. Callar es mejor que dar una alarma falsa.
+        if (hayRegla != false)
+        {
+            _avisoCortafuegos.Visible = false;
+            return;
+        }
+
+        _avisoCortafuegos.Visible = true;
+        _icono.ShowBalloonTip(
+            8000,
+            "DracPaste · falta un permiso",
+            "El firewall de Windows va a bloquear al móvil. Abre el menú de DracPaste y " +
+            "pulsa «Permitir en el firewall de Windows…».",
+            ToolTipIcon.Warning);
+    }
+
+    private void ArreglarCortafuegos()
+    {
+        if (Cortafuegos.CrearReglas())
+        {
+            _avisoCortafuegos.Visible = false;
+            MessageBox.Show(
+                "Listo. El móvil ya puede conectarse con este PC.",
+                "DracPaste",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        MessageBox.Show(
+            """
+            No se han podido crear las reglas del firewall.
+
+            Hace falta aceptar el aviso de administrador de Windows. Si lo has rechazado,
+            vuelve a intentarlo desde el menú.
+
+            También puedes hacerlo a mano en «Firewall de Windows Defender → Permitir una
+            aplicación», marcando DracPaste en la columna de redes privadas.
+            """,
+            "DracPaste",
+            MessageBoxButtons.OK,
+            MessageBoxIcon.Warning);
     }
 
     /// <summary>Actualiza el estado que se ve en el menú y en el tooltip del icono.</summary>

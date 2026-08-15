@@ -65,10 +65,14 @@ internal static class Program
         var puerto = args.Length > 0 && int.TryParse(args[0], out var elegido) ? elegido : 0;
         servidor.Arrancar(puertoPreferido: puerto);
 
+        // La IP se puede pasar como segundo argumento para probar contra un móvil real
+        // de la red; por defecto, loopback, que es lo que usa la prueba cruzada.
+        var ip = args.Length > 1 ? args[1] : "127.0.0.1";
+
         var qr = new DatosQr
         {
             Pk = Convert.ToBase64String(identidad.Publica),
-            Ip = "127.0.0.1",
+            Ip = ip,
             Port = servidor.Puerto,
             Token = Convert.ToBase64String(tokens.Emitir()),
             // Sin espacios a propósito: así el JSON se puede teclear con `adb shell
