@@ -86,6 +86,7 @@ private fun Pantalla() {
     var trabajando by remember { mutableStateOf(false) }
     var aviso by remember { mutableStateOf<String?>(null) }
     var aDesemparejar by remember { mutableStateOf<PcEmparejado?>(null) }
+    var enAjustes by remember { mutableStateOf(false) }
 
     val pedirNotificaciones = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -134,6 +135,13 @@ private fun Pantalla() {
         if (pcs.isNotEmpty()) {
             arrancarServicioSiSePuede(contexto, pedirNotificaciones::launch)
         }
+    }
+
+    if (enAjustes) {
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            PantallaAjustes(alVolver = { enAjustes = false })
+        }
+        return
     }
 
     Column(
@@ -228,6 +236,12 @@ private fun Pantalla() {
                     TextButton(onClick = { aviso = null }) { Text("Entendido") }
                 }
             }
+        }
+
+        HorizontalDivider()
+
+        TextButton(onClick = { enAjustes = true }, modifier = Modifier.fillMaxWidth()) {
+            Text("Ajustes y batería")
         }
 
         Text(

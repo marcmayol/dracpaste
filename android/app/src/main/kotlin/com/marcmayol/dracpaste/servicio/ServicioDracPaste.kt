@@ -16,6 +16,7 @@ import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import com.marcmayol.dracpaste.R
 import com.marcmayol.dracpaste.datos.AlmacenIdentidad
+import com.marcmayol.dracpaste.datos.Preferencias
 import com.marcmayol.dracpaste.datos.RegistroPcs
 import com.marcmayol.dracpaste.portapapeles.ActividadCaptura
 import com.marcmayol.dracpaste.portapapeles.GestorPortapapeles
@@ -44,6 +45,13 @@ class ServicioDracPaste : LifecycleService() {
     private lateinit var registro: RegistroPcs
     private lateinit var cliente: ClienteDracPaste
     private lateinit var portapapeles: GestorPortapapeles
+    private lateinit var vigilanteDeRed: VigilanteDeRed
+
+    /**
+     * Se lee en cada evento, no una vez al arrancar: el usuario puede pausar la
+     * sincronización desde la app mientras el servicio ya está en marcha.
+     */
+    private val preferencias: Preferencias by lazy { Preferencias(this) }
 
     /**
      * Compartido con el resto de la app: la misma instancia que consultará la activity
@@ -65,6 +73,7 @@ class ServicioDracPaste : LifecycleService() {
         registro = RegistroPcs(this)
         portapapeles = GestorPortapapeles(this)
         cliente = ClienteDracPaste(identidad, DescubridorNsd(this), lifecycleScope)
+        vigilanteDeRed = VigilanteDeRed(this).also { it.empezar() }
 
         cliente.alRecibirClip = { clip -> escribirClipRecibido(clip) }
 
@@ -122,6 +131,8 @@ class ServicioDracPaste : LifecycleService() {
                     enviarAlPc(texto)
                 }
             }
+
+            ACCION_RELEER_AJUSTES -> notificar(null)
         }
 
         // START_STICKY: si el sistema mata el proceso por memoria, que lo vuelva a
@@ -137,6 +148,13 @@ class ServicioDracPaste : LifecycleService() {
      * invisible y lo escribe con el foco puesto (`PLAN.md` §7).
      */
     private fun escribirClipRecibido(clip: Clip) {
+        if (preferencias.pausado) {
+            // Pausado significa pausado en las dos direcciones: lo que llega tampoco se
+            // escribe. El anti-eco tampoco se toca, porque no ha habido escritura que
+            // pueda rebotar.
+            return
+        }
+
         // Se anota **antes** de escribir: en cuanto se escriba, el portapapeles cambia, y
         // si la marca no estuviera ya puesta, el siguiente envío devolvería este mismo
         // clip al PC y empezaría el bucle.
@@ -145,7 +163,11 @@ class ServicioDracPaste : LifecycleService() {
         val texto = clip.texto()
         if (portapapeles.escribir(texto)) {
             clipPendienteDePegar = null
-            notificar("Recibido de ${registro.activo()?.nombre ?: "el PC"}")
+            val nombrePc = registro.activo()?.nombre ?: "el PC"
+            notificar("Recibido de $nombrePc")
+            if (preferencias.avisarAlRecibir) {
+                Toast.makeText(this, "Copiado de $nombrePc", Toast.LENGTH_SHORT).show()
+            }
         } else {
             clipPendienteDePegar = texto
             notificar(null)
@@ -161,6 +183,11 @@ class ServicioDracPaste : LifecycleService() {
      * acuerda, que es peor que no enviarlo.
      */
     private fun enviarAlPc(texto: String) {
+        if (preferencias.pausado) {
+            Toast.makeText(this, "La sincronización está pausada", Toast.LENGTH_SHORT).show()
+            return
+        }
+
         // El anti-eco es el mismo objeto que usa la recepción: si esto es el eco de un
         // clip que el PC acaba de mandar, no vuelve.
         if (!antiEco.debeReenviar(Clip.origenDe(texto))) {
@@ -212,6 +239,7 @@ class ServicioDracPaste : LifecycleService() {
     }
 
     override fun onDestroy() {
+        vigilanteDeRed.parar()
         cliente.detener()
         super.onDestroy()
     }
@@ -238,22 +266,31 @@ class ServicioDracPaste : LifecycleService() {
             .notify(ID_NOTIFICACION, construirNotificacion(mensajeExtra))
     }
 
+    /** El estado de la conexión, tal como lo lee el usuario. */
+    private fun tituloDelEstado(nombrePc: String?): String = when (ultimoEstado) {
+        EstadoConexion.SIN_EMPAREJAR -> "Sin emparejar"
+        EstadoConexion.BUSCANDO -> "Buscando ${nombrePc ?: "tu PC"}"
+        EstadoConexion.CONECTANDO -> "Conectando con ${nombrePc ?: "tu PC"}"
+        EstadoConexion.CONECTADO -> "Conectado con ${nombrePc ?: "tu PC"}"
+        EstadoConexion.RECONECTANDO -> "Reconectando con ${nombrePc ?: "tu PC"}"
+    }
+
     private fun construirNotificacion(mensajeExtra: String?): Notification {
         val nombrePc = registro.activo()?.nombre
 
-        val titulo = when (ultimoEstado) {
-            EstadoConexion.SIN_EMPAREJAR -> "Sin emparejar"
-            EstadoConexion.BUSCANDO -> "Buscando ${nombrePc ?: "tu PC"}"
-            EstadoConexion.CONECTANDO -> "Conectando con ${nombrePc ?: "tu PC"}"
-            EstadoConexion.CONECTADO -> "Conectado con ${nombrePc ?: "tu PC"}"
-            EstadoConexion.RECONECTANDO -> "Reconectando con ${nombrePc ?: "tu PC"}"
+        val titulo = when {
+            // La pausa manda sobre el estado de red: el usuario tiene que ver que no
+            // sincroniza porque él lo ha pedido, no porque algo esté roto.
+            preferencias.pausado -> "Sincronización en pausa"
+            else -> tituloDelEstado(nombrePc)
         }
 
         val texto = mensajeExtra
             ?: ultimoDetalle
-            ?: when (ultimoEstado) {
-                EstadoConexion.SIN_EMPAREJAR -> "Toca para emparejar un PC"
-                EstadoConexion.CONECTADO -> "Lo que copies en el PC llegará aquí"
+            ?: when {
+                preferencias.pausado -> "Nada sale ni entra hasta que la reanudes"
+                ultimoEstado == EstadoConexion.SIN_EMPAREJAR -> "Toca para emparejar un PC"
+                ultimoEstado == EstadoConexion.CONECTADO -> "Lo que copies en el PC llegará aquí"
                 else -> "Sin conexión con el PC"
             }
 
@@ -331,6 +368,7 @@ class ServicioDracPaste : LifecycleService() {
         const val ACCION_RELEER_EMPAREJAMIENTO = "com.marcmayol.dracpaste.RELEER_EMPAREJAMIENTO"
         const val ACCION_CLIP_PEGADO = "com.marcmayol.dracpaste.CLIP_PEGADO"
         const val ACCION_ENVIAR_TEXTO = "com.marcmayol.dracpaste.ENVIAR_TEXTO"
+        const val ACCION_RELEER_AJUSTES = "com.marcmayol.dracpaste.RELEER_AJUSTES"
 
         const val EXTRA_TEXTO = "texto"
 

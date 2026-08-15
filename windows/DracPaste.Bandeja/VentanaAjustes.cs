@@ -34,10 +34,10 @@ internal sealed class VentanaAjustes : Form
         {
             Text = $"""
                     Este PC: {identidad.Nombre}
-                    Escuchando en el puerto {servidor.Puerto}
+                    Escuchando en el puerto {servidor.Puerto} · solo red local · cifrado de extremo a extremo
                     """,
             Dock = DockStyle.Top,
-            Height = 52,
+            Height = 56,
             Padding = new Padding(16, 12, 16, 0),
         };
 
@@ -72,11 +72,51 @@ internal sealed class VentanaAjustes : Form
         botones.Controls.Add(cerrar);
         botones.Controls.Add(desemparejar);
 
+        var opciones = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Bottom,
+            FlowDirection = FlowDirection.TopDown,
+            Height = 78,
+            Padding = new Padding(16, 4, 16, 0),
+            WrapContents = false,
+        };
+
+        var arranque = new CheckBox
+        {
+            Text = "Arrancar DracPaste al iniciar sesión en Windows",
+            Checked = ArranqueConWindows.Activo,
+            AutoSize = true,
+        };
+        arranque.CheckedChanged += (_, _) =>
+        {
+            if (!ArranqueConWindows.Activar(arranque.Checked))
+            {
+                MessageBox.Show(
+                    "Windows no ha dejado cambiar esa opción. Suele ser por una política del equipo.",
+                    "DracPaste",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+                arranque.Checked = ArranqueConWindows.Activo;
+            }
+        };
+
+        var pausa = new CheckBox
+        {
+            Text = "Pausar la sincronización (nada sale ni entra)",
+            Checked = servidor.EnPausa,
+            AutoSize = true,
+        };
+        pausa.CheckedChanged += (_, _) => PausaCambiada?.Invoke(pausa.Checked);
+
+        opciones.Controls.Add(arranque);
+        opciones.Controls.Add(pausa);
+
         var privacidad = new Label
         {
-            Text = "DracPaste no envía nada fuera de tu red local y no guarda historial de clips.",
+            Text = "DracPaste no envía nada fuera de tu red local, no guarda historial de clips " +
+                   "y no recoge ninguna estadística.",
             Dock = DockStyle.Bottom,
-            Height = 32,
+            Height = 40,
             Padding = new Padding(16, 8, 16, 0),
             ForeColor = Color.DimGray,
         };
@@ -86,12 +126,16 @@ internal sealed class VentanaAjustes : Form
 
         Controls.Add(marco);
         Controls.Add(privacidad);
+        Controls.Add(opciones);
         Controls.Add(botones);
         Controls.Add(cabecera);
 
         AcceptButton = cerrar;
         Refrescar();
     }
+
+    /// <summary>El usuario ha pausado o reanudado la sincronización.</summary>
+    public event Action<bool>? PausaCambiada;
 
     private void Refrescar()
     {

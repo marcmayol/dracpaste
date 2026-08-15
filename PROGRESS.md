@@ -614,3 +614,148 @@ efecto **sin reiniciar** ni la app ni el móvil.
 
 *Resultado esperado*: empareja igual. Es la salida cuando la cámara está rota, sucia o el
 usuario le ha denegado el permiso.
+
+---
+
+## Fase 5 · Robustez y ajustes — CERRADA (2026-08-15)
+
+### Qué se hizo
+
+**Los tres avisos que despiertan la reconexión** (`VigilanteDeRed`). Sin ellos, el móvil
+solo reintentaría siguiendo el backoff, que llega a esperar 30 segundos:
+
+- **Cambio de red** (`NetworkCallback`): al pasar del WiFi a datos o al revés, el socket
+  anterior está muerto aunque no lo parezca, y la IP recordada pertenece a otra red. Se
+  reacciona a `onAvailable` pero **no** a `onLost`: un salto entre puntos de acceso levanta
+  y tira redes en un instante, y cortar la sesión en cada parpadeo daría más problemas de
+  los que resuelve. Quien decide que la conexión ha muerto es el PING.
+- **Pantalla encendida** (`ACTION_SCREEN_ON`): es cuando el usuario va a usar el móvil, y
+  mitiga Doze sin pedir un `WakeLock` ni mantener nada despierto.
+- **Arranque** (`BOOT_COMPLETED`): el servicio vuelve solo tras reiniciar, pero **solo si
+  hay algún PC emparejado**: una notificación permanente en un móvil donde la app aún no
+  está configurada sería molesta y no serviría de nada.
+
+**La batería, explicada en vez de exigida.** La pantalla de ajustes dice qué pasa si
+Android restringe la app y por qué el consumo real es mínimo —no hace nada mientras no
+copies—, y ofrece el diálogo del sistema. Se usa el intent que **pregunta** al usuario, no
+el que concede la exención en silencio: quitarle a alguien una protección de batería sin
+decírselo no es aceptable en una app que le pide confianza.
+
+**Guía por fabricante** (`GuiaDeFabricante`). La exención estándar no basta en Xiaomi,
+Samsung, Huawei, OPPO y OnePlus: cada uno tiene su propia capa que mata procesos con sus
+reglas, y el ajuste está en un sitio distinto. Un mensaje genérico del tipo «desactiva la
+optimización de batería» no le sirve de nada a quien tiene un Xiaomi, donde lo que importa
+se llama «Sin restricciones» y está en otro menú. La app detecta la marca, enseña los pasos
+concretos y ofrece abrir esa pantalla —comprobando antes que existe, porque cambian de
+nombre entre versiones y un intent a ciegas cerraría la app.
+
+**Ajustes completos en los dos lados**: pausar la sincronización (que no tira la conexión,
+para que el usuario distinga «lo he pausado yo» de «se ha roto algo»), aviso al recibir, y
+en Windows además arranque con el inicio de sesión mediante la clave `Run` del usuario —no
+la de la máquina: no necesita administrador y cada usuario decide por su cuenta—.
+
+Dos ajustes se muestran como **valores, no como interruptores**: «solo red local» y
+«los clips sensibles nunca se sincronizan». No es un descuido: en v1 no hay relay que
+activar, y una app cuyo argumento es la privacidad no debería ofrecer un botón para mandar
+contraseñas por la red aunque alguien lo pidiera. Enseñarlos igualmente sirve para que el
+usuario sepa qué hace la app.
+
+### Verificado automáticamente
+
+| Comprobación | Resultado |
+|---|---|
+| `gradlew :protocolo:test` + `:app:testDebugUnitTest` | 129 tests, 0 fallos |
+| `dotnet test` (solución completa), 4 vueltas seguidas | 125 tests, 0 fallos, sin intermitencias |
+| `gradlew :app:assembleDebug` | Correcto |
+| Pantalla de ajustes en el emulador Android 14 | Revisada |
+| La misma pantalla con `font_scale 1.5` | Revisada, nada se corta |
+
+### Un fallo real encontrado
+
+**Cerrar DracPaste terminaba con una excepción.** Al parar el servidor, el
+`AcceptTcpClientAsync` que estaba esperando lanza `ObjectDisposedException` —no
+`OperationCanceledException`, que era lo único que se capturaba—, y esa excepción se
+propagaba desde `DisposeAsync` hasta el cierre de la aplicación.
+
+Lo destapó un test que falló de forma intermitente: depende de si el listener se para antes
+o después de que el bucle vuelva a entrar en `Accept`. Ahora ese caso se trata como el
+final normal que es, y `DisposeAsync` no deja escapar nada: cerrar no puede fallar.
+
+### Pruebas manuales pendientes
+
+Estas son las que el plan marca como **medibles** y ninguna se puede automatizar.
+
+**M5.1 · Suspender el PC y despertarlo → reconexión en menos de 5 s**
+
+1. Con el par conectado, suspender el PC (no apagarlo).
+2. Esperar un minuto y despertarlo.
+3. Cronometrar desde que la pantalla del PC vuelve hasta que el móvil dice «Conectado».
+
+*Resultado esperado*: menos de 5 segundos, sin tocar nada. Es lo que debe conseguir el
+reanuncio de mDNS al despertar (`PowerModeChanged`).
+
+**M5.2 · Cambiar de WiFi y volver → reconexión en menos de 5 s**
+
+1. Con el par conectado, cambiar el móvil a otra red WiFi (o a datos).
+2. Volver a la red del PC.
+
+*Resultado esperado*: menos de 5 segundos desde que vuelve a la red buena. Sin el
+`NetworkCallback`, esto tardaría hasta 30 segundos por el backoff.
+
+**M5.3 · WiFi apagado 10 minutos → reconexión en menos de 10 s**
+
+1. Apagar el WiFi del móvil y dejarlo **10 minutos** con la pantalla apagada.
+2. Encender el WiFi.
+
+*Resultado esperado*: menos de 10 segundos. Este es el caso donde Doze ya ha entrado y el
+backoff está en su tope de 30 s: lo que tiene que salvarlo es el aviso de red o el de
+pantalla encendida.
+
+**M5.4 · Reiniciar el móvil → el servicio vuelve solo**
+
+1. Reiniciar el móvil por completo.
+2. **No abrir DracPaste.**
+3. Copiar algo en el PC y mirar el móvil.
+
+*Resultado esperado*: la notificación de DracPaste está ahí sin haber abierto la app, y el
+texto llega. Si falla, casi seguro es la restricción de arranque automático del fabricante:
+mirar la guía de la propia app.
+
+**M5.5 · Matar el proceso → el servicio se restaura**
+
+1. Ajustes → Aplicaciones → DracPaste → «Forzar detención».
+2. Esperar un par de minutos sin tocar el móvil.
+
+*Resultado esperado*: el servicio vuelve por `START_STICKY`. En algunos fabricantes, forzar
+la detención lo deja muerto hasta que el usuario abra la app: eso es comportamiento del
+sistema y conviene anotar en qué móvil pasa.
+
+**M5.6 · La exención de batería y la guía del fabricante**
+
+1. Ajustes de DracPaste → «Quitar las restricciones».
+2. Si el móvil es Xiaomi, Samsung, Huawei, OPPO o OnePlus: «Ver qué hay que tocar» y
+   «Abrir esos ajustes».
+
+*Resultado esperado*: el diálogo del sistema aparece y, al conceder, la app pasa a
+«Batería: sin restricciones ✓» sin reiniciarla. El botón de abrir los ajustes del
+fabricante **no puede cerrar la app** aunque esa pantalla no exista en esa versión.
+
+**M5.7 · Pausar de verdad pausa**
+
+1. Activar «Pausar la sincronización» en el móvil.
+2. Copiar algo en el PC. Copiar algo en el móvil y pulsar «Enviar portapapeles».
+3. Desactivar la pausa y repetir.
+
+*Resultado esperado*: con la pausa activa no viaja nada **en ninguna de las dos
+direcciones**, pero la notificación sigue diciendo que está conectado con el PC —eso es lo
+que distingue una pausa de una avería—. Al desactivarla, todo vuelve a funcionar sin
+reiniciar nada.
+
+**M5.8 · El servicio aguanta la noche** *(la prueba larga)*
+
+1. Dejar el móvil cargando toda la noche, sin tocarlo.
+2. Por la mañana, copiar algo en el PC.
+
+*Resultado esperado*: llega. Si no llega pero sí lo hace al desbloquear el móvil, el
+sistema mató el servicio y la exención de batería no bastó: apuntar el fabricante y la
+versión de Android.

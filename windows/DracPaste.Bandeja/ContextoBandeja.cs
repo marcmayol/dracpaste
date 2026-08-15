@@ -177,11 +177,34 @@ internal sealed class ContextoBandeja : ApplicationContext
     private void AbrirAjustes()
     {
         using var ventana = new VentanaAjustes(_identidad, _registro, _servidor);
+        ventana.PausaCambiada += pausado =>
+        {
+            _servidor.EnPausa = pausado;
+            // También se para el vigilante: sin esto, seguiría leyendo el portapapeles de
+            // cada copia para acabar descartándola.
+            _portapapeles.EnPausa = pausado;
+        };
+
         ventana.ShowDialog();
-        MostrarEstado(_registro.Todos.Count == 0 ? "Sin emparejar" : EstadoActual());
+        MostrarEstado(EstadoActual());
     }
 
-    private string EstadoActual() =>
+    private string EstadoActual()
+    {
+        if (_servidor.EnPausa)
+        {
+            return "En pausa";
+        }
+
+        if (_registro.Todos.Count == 0)
+        {
+            return "Sin emparejar";
+        }
+
+        return EstadoDeConexion();
+    }
+
+    private string EstadoDeConexion() =>
         _servidor.HayMovilConectado
             ? $"Conectado con {_servidor.NombreMovilConectado}"
             : "Esperando al móvil";
@@ -196,9 +219,7 @@ internal sealed class ContextoBandeja : ApplicationContext
         try
         {
             _mdns.Reanunciar();
-            MostrarEstado(_servidor.HayMovilConectado
-                ? $"Conectado con {_servidor.NombreMovilConectado}"
-                : "Esperando al móvil");
+            MostrarEstado(EstadoActual());
         }
         catch (Exception)
         {

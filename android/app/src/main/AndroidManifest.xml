@@ -82,6 +82,19 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
 
+        <!-- El servicio tiene que volver solo tras reiniciar el móvil. Solo se levanta
+             si hay algún PC emparejado: una notificación permanente en un móvil donde la
+             app aún no está configurada sería molesta y no serviría de nada. -->
+        <receiver
+            android:name=".servicio.ReceptorDeArranque"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>

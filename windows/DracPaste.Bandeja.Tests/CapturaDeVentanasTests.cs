@@ -95,7 +95,14 @@ public class CapturaDeVentanasTests
                 }
                 finally
                 {
+                    // El analizador avisa de que bloquear sobre una tarea puede provocar
+                    // un interbloqueo. Aquí no: esto corre en un hilo STA creado a mano,
+                    // sin contexto de sincronización al que la continuación pueda querer
+                    // volver. Y hace falta bloquear, porque el hilo tiene que seguir vivo
+                    // hasta que el servidor termine de cerrarse.
+#pragma warning disable xUnit1031
                     servidor.DisposeAsync().AsTask().GetAwaiter().GetResult();
+#pragma warning restore xUnit1031
                 }
             });
 

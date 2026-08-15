@@ -35,6 +35,13 @@ public sealed class ServidorDracPaste : IAsyncDisposable
     /// <summary>Puerto en el que se está escuchando de verdad.</summary>
     public int Puerto { get; private set; }
 
+    /// <summary>
+    /// Con la sincronización pausada, los clips no salen ni entran. La conexión se
+    /// mantiene a propósito: el usuario sigue viendo que el PC y el móvil se ven, y así
+    /// distingue «lo he pausado yo» de «se ha roto algo».
+    /// </summary>
+    public bool EnPausa { get; set; }
+
     /// <summary>Se dispara cuando llega un clip del móvil.</summary>
     public event Action<Clip>? ClipRecibido;
 
@@ -88,6 +95,11 @@ public sealed class ServidorDracPaste : IAsyncDisposable
     /// <summary>Envía un clip al móvil conectado. Si no hay ninguno, no hace nada.</summary>
     public async Task<bool> EnviarClipAsync(Clip clip, CancellationToken ct = default)
     {
+        if (EnPausa)
+        {
+            return false;
+        }
+
         var sesion = _sesion;
         if (sesion is null || !sesion.Viva)
         {
@@ -153,6 +165,13 @@ public sealed class ServidorDracPaste : IAsyncDisposable
             }
             catch (OperationCanceledException)
             {
+                return;
+            }
+            catch (ObjectDisposedException)
+            {
+                // El listener se ha parado mientras esperábamos una conexión. Es lo que
+                // pasa al cerrar la app, y hay que tratarlo como un final normal: si se
+                // dejara escapar, cerrar DracPaste terminaría con una excepción.
                 return;
             }
             catch (SocketException)
@@ -296,9 +315,10 @@ public sealed class ServidorDracPaste : IAsyncDisposable
             {
                 await _bucleAceptacion.ConfigureAwait(false);
             }
-            catch (OperationCanceledException)
+            catch (Exception)
             {
-                // Es la forma normal de terminar.
+                // Cerrar no puede fallar. Lo que quede a medias en el bucle de aceptación
+                // ya no importa: el listener está parado y las sesiones, cerradas.
             }
         }
 
