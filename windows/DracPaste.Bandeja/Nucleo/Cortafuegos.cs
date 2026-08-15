@@ -86,9 +86,16 @@ internal static class Cortafuegos
     /// <summary>
     /// Crea las reglas, pidiendo elevación. Devuelve si el usuario aceptó y salió bien.
     ///
-    /// Se acotan al ejecutable, al puerto y a los perfiles privado y de dominio: en una
-    /// red pública —un hotel, un aeropuerto— DracPaste no debe aceptar conexiones, y ahí
-    /// tampoco tendría sentido usarlo.
+    /// Se acotan al ejecutable y al puerto, pero valen para **todos los perfiles de red**.
+    /// La primera versión las creó solo para «privada» y «dominio», que parecía lo
+    /// prudente, y no funcionaban: Windows clasifica como **pública** cualquier red en la
+    /// que el usuario haya dicho que no quiere que el equipo sea detectable, y eso incluye
+    /// la mayoría de redes domésticas. El síntoma era el mismo que sin regla ninguna, así
+    /// que la prudencia solo servía para que la app no funcionara.
+    ///
+    /// Abrir el puerto en redes públicas es asumible aquí: lo único que escucha es el
+    /// servidor de DracPaste, y sin un token del QR o la clave de un emparejamiento
+    /// previo, quien conecte no consigue nada más que un cierre de conexión.
     /// </summary>
     public static bool CrearReglas()
     {
@@ -106,9 +113,9 @@ internal static class Cortafuegos
             $"netsh advfirewall firewall delete rule name=\"{NombreReglaMdns}\"",
             $"netsh advfirewall firewall add rule name=\"{NombreReglaTcp}\" dir=in action=allow " +
                 $"program=\"{exe}\" protocol=TCP localport={Protocolo.Protocolo.PuertoPreferido} " +
-                "profile=private,domain",
+                "profile=any",
             $"netsh advfirewall firewall add rule name=\"{NombreReglaMdns}\" dir=in action=allow " +
-                $"program=\"{exe}\" protocol=UDP localport=5353 profile=private,domain",
+                $"program=\"{exe}\" protocol=UDP localport=5353 profile=any",
         });
 
         try

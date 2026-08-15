@@ -13,7 +13,7 @@
 #define MiApp "DracPaste"
 ; Debe coincidir con el versionName de android/app/build.gradle.kts: las dos mitades se
 ; publican juntas en la misma Release y tener versiones distintas solo confunde.
-#define MiVersion "1.1"
+#define MiVersion "1.2"
 #define MiAutor "marcmayol.com"
 #define MiEjecutable "DracPaste.exe"
 
@@ -69,14 +69,27 @@ Name: "{userstartup}\{#MiApp}"; Filename: "{app}\{#MiEjecutable}"; Tasks: arranq
 ; runascurrentuser NO: crear reglas necesita administrador, y esta instalacion corre sin
 ; privilegios. Se eleva solo este paso; si el usuario lo rechaza, la instalacion sigue
 ; adelante y la propia app avisa despues y ofrece crearlas desde su menu.
+; Se borran antes las que hubiera: "add rule" con un nombre que ya existe ANADE otra
+; regla en vez de reemplazarla, asi que al actualizar se irian acumulando —incluidas las
+; viejas, que solo valian para redes privadas—.
 Filename: "{sys}\netsh.exe"; \
-    Parameters: "advfirewall firewall add rule name=""DracPaste (TCP entrante)"" dir=in action=allow program=""{app}\{#MiEjecutable}"" protocol=TCP localport=47653 profile=private,domain"; \
+    Parameters: "advfirewall firewall delete rule name=""DracPaste (TCP entrante)"""; \
+    Flags: runhidden waituntilterminated; \
+    Check: not EsSilencioso
+
+Filename: "{sys}\netsh.exe"; \
+    Parameters: "advfirewall firewall delete rule name=""DracPaste (mDNS entrante)"""; \
+    Flags: runhidden waituntilterminated; \
+    Check: not EsSilencioso
+
+Filename: "{sys}\netsh.exe"; \
+    Parameters: "advfirewall firewall add rule name=""DracPaste (TCP entrante)"" dir=in action=allow program=""{app}\{#MiEjecutable}"" protocol=TCP localport=47653 profile=any"; \
     StatusMsg: "Permitiendo DracPaste en el firewall…"; \
     Flags: runhidden waituntilterminated; \
     Check: not EsSilencioso
 
 Filename: "{sys}\netsh.exe"; \
-    Parameters: "advfirewall firewall add rule name=""DracPaste (mDNS entrante)"" dir=in action=allow program=""{app}\{#MiEjecutable}"" protocol=UDP localport=5353 profile=private,domain"; \
+    Parameters: "advfirewall firewall add rule name=""DracPaste (mDNS entrante)"" dir=in action=allow program=""{app}\{#MiEjecutable}"" protocol=UDP localport=5353 profile=any"; \
     StatusMsg: "Permitiendo el descubrimiento en la red local…"; \
     Flags: runhidden waituntilterminated; \
     Check: not EsSilencioso
