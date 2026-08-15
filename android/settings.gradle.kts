@@ -29,3 +29,9 @@ include(":protocolo")
 
 // Servicio, notificación, portapapeles, NSD, Keystore y pantallas Compose.
 include(":app")
+
+// Auto-actualización fuera de Play Store. Es el mismo módulo que llevan Kuse, el Grimorio
+// y Building My Future, copiado tal cual: el namespace sigue siendo com.marcm.actualizador
+// a propósito, para que sea literalmente el mismo código y no una variante que se vaya
+// separando con el tiempo.
+include(":actualizador")

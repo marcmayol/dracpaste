@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DracPaste</title>
+  <meta name="description" content="Portapapeles compartido entre Android y Windows. Solo red local, cifrado de extremo a extremo, sin nube y sin cuenta." />
+  <style>
+    :root {
+      --bg: #0d1310; --card: #14201a; --ink: #e6ece8; --muted: #8fa398;
+      --accent: #d9a441; --verde: #2e6b56; --line: #22322b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.55;
+    }
+    .envoltorio { max-width: 46rem; margin: 0 auto; padding: 4rem 1.25rem 5rem; }
+    .marca { display: flex; align-items: center; gap: .75rem; margin-bottom: 2.5rem; }
+    .marca svg { width: 44px; height: 44px; }
+    .marca span { font-size: 1.6rem; font-weight: 300; letter-spacing: .12em; }
+    h1 { font-size: clamp(2rem, 6vw, 2.8rem); line-height: 1.15; margin: 0 0 1rem; }
+    p.entrada { color: var(--muted); font-size: 1.1rem; margin: 0 0 2.5rem; }
+    .tarjeta {
+      background: var(--card); border: 1px solid var(--line);
+      border-radius: 20px; padding: 1.5rem; margin-bottom: 1rem;
+    }
+    .tarjeta h2 { margin: 0 0 .5rem; font-size: 1.1rem; }
+    .tarjeta p { margin: 0; color: var(--muted); }
+    .descargas { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1.5rem 0 2.5rem; }
+    .boton {
+      display: inline-block; background: var(--accent); color: #201703;
+      text-decoration: none; font-weight: 600; padding: .85rem 1.5rem;
+      border-radius: 99px;
+    }
+    .boton.secundario { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+    ul { color: var(--muted); padding-left: 1.1rem; }
+    li { margin-bottom: .4rem; }
+    h2.seccion { margin: 3rem 0 1rem; font-size: 1.3rem; }
+    table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+    th, td { text-align: left; padding: .6rem .5rem; border-bottom: 1px solid var(--line); }
+    th { color: var(--ink); font-weight: 600; }
+    td { color: var(--muted); }
+    footer { margin-top: 4rem; color: var(--muted); font-size: .9rem; }
+    footer a { color: var(--accent); }
+    code { background: var(--card); padding: .15rem .4rem; border-radius: 6px; font-size: .9em; }
+  </style>
+</head>
+<body>
+  <div class="envoltorio">
+    <div class="marca">
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="7" fill="#0F3A2E" />
+        <path d="M7 12 L19 12 L19 8.5 L25 14 L19 19.5 L19 16 L7 16 Z" fill="#D9A441" />
+        <path d="M25 20 L13 20 L13 16.5 L7 22 L13 27.5 L13 24 L25 24 Z" fill="#D9A441" />
+      </svg>
+      <span>DracPaste</span>
+    </div>
+
+    <h1>Copia en el PC, pega en el móvil</h1>
+    <p class="entrada">
+      Tu portapapeles, compartido entre Android y Windows. Sin nube, sin cuenta y sin que
+      nada salga de tu red local.
+    </p>
+
+    <div class="descargas">
+      <a class="boton" href="https://github.com/marcmayol/dracpaste/releases/latest">Descargar</a>
+      <a class="boton secundario" href="https://marcmayol.com/DracApps/">Ver en DracApps</a>
+      <a class="boton secundario" href="https://github.com/marcmayol/dracpaste">Código</a>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Del PC al móvil: automático</h2>
+      <p>Copias algo en el PC y ya está en el portapapeles del móvil. No hay que hacer nada más.</p>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Del móvil al PC: un gesto</h2>
+      <p>
+        El botón de la notificación, o «Compartir → Enviar al PC». Desde Android 10 ninguna
+        app puede leer tu portapapeles sin estar en pantalla, y DracPaste no va a fingir
+        que sí: te lo dice y te da dos formas rápidas de hacerlo tú.
+      </p>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Cifrado siempre, también en tu casa</h2>
+      <p>
+        X25519 para acordar la clave y ChaCha20-Poly1305 para los mensajes, con claves
+        nuevas en cada conexión. La clave privada del móvil la guarda su hardware seguro;
+        la del PC, tu cuenta de Windows.
+      </p>
+    </div>
+
+    <h2 class="seccion">Lo que no hace</h2>
+    <ul>
+      <li><strong>No sincroniza contraseñas.</strong> Cuando un gestor copia algo, lo marca como sensible y DracPaste lo respeta. No hay forma de desactivarlo.</li>
+      <li><strong>No guarda historial.</strong> Lo que copias no queda escrito en ningún sitio.</li>
+      <li><strong>No sale de tu red.</strong> No hay servidores ni relay. Si el PC y el móvil no están en la misma red, no hay sincronización, y la app lo dice.</li>
+      <li><strong>No recoge estadísticas.</strong> No hay nada que enviar porque no hay a dónde enviarlo.</li>
+      <li><strong>No pide permisos de más.</strong> Ni almacenamiento, ni contactos, ni ubicación. La cámara solo para escanear el código de emparejamiento, y es opcional.</li>
+    </ul>
+
+    <h2 class="seccion">Qué necesitas</h2>
+    <table>
+      <tr><th>PC</th><td>Windows 10 u 11</td></tr>
+      <tr><th>Móvil</th><td>Android 10 o posterior</td></tr>
+      <tr><th>Red</th><td>Los dos en el mismo WiFi. No hace falta internet.</td></tr>
+    </table>
+
+    <h2 class="seccion">Cómo se empareja</h2>
+    <ul>
+      <li>En el PC: clic derecho en el icono de la bandeja → «Emparejar un móvil…».</li>
+      <li>En el móvil: «Escanear el código del PC» y apuntar al QR.</li>
+      <li>Los dos enseñan una huella tipo <code>A3F2-9C71</code>: comprueba que es la misma.</li>
+    </ul>
+
+    <footer>
+      <p>
+        Se actualiza sola, fuera de Play Store.
+        <a href="https://github.com/marcmayol/dracpaste">Código en GitHub</a> ·
+        <a href="https://marcmayol.com">marcmayol.com</a>
+      </p>
+    </footer>
+  </div>
+</body>
+</html>

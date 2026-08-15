@@ -1,3 +1,4 @@
+import java.io.FileInputStream
 import java.util.Properties
 
 plugins {
@@ -11,15 +12,25 @@ plugins {
 }
 
 // La configuración de firma vive fuera del repositorio: keystore.properties está en el
-// .gitignore y la keystore, en la carpeta del usuario. Si no existe, se compila sin firmar
-// en vez de fallar, para que cualquiera pueda clonar el proyecto y montar un APK de
-// depuración sin tener las claves.
+// .gitignore y la keystore, en la carpeta del usuario.
+//
+// Orden: fichero → variable de entorno → debug.keystore. El último escalón es lo que
+// permite que cualquiera clone el proyecto y compile sin tener las claves; que eso NO
+// acabe publicado por accidente lo garantiza scripts/publicar_release.py, que aborta si
+// el APK viene firmado con "CN=Android Debug".
+val ficheroDeFirma = rootProject.file("keystore.properties")
 val propiedadesDeFirma = Properties().apply {
-    val fichero = rootProject.file("keystore.properties")
-    if (fichero.exists()) {
-        fichero.inputStream().use { load(it) }
+    if (ficheroDeFirma.exists()) {
+        FileInputStream(ficheroDeFirma).use { load(it) }
     }
 }
+
+fun datoFirma(clave: String, variableEntorno: String): String? =
+    (propiedadesDeFirma[clave] as String?)?.takeIf { it.isNotBlank() }
+        ?: System.getenv(variableEntorno)?.takeIf { it.isNotBlank() }
+
+val almacenDeFirma = datoFirma("storeFile", "DRACPASTE_STORE_FILE")
+val hayKeystoreDePublicacion = almacenDeFirma != null
 
 android {
     namespace = "com.marcmayol.dracpaste"
@@ -31,8 +42,9 @@ android {
         // diseño del plan (§1) no tendría sentido.
         minSdk = 29
         targetSdk = 35
+        // El versionCode sube de uno en uno y es lo único que mira el actualizador.
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -47,18 +59,25 @@ android {
     // (ver PROGRESS.md, Fase 6).
 
     signingConfigs {
-        if (propiedadesDeFirma.getProperty("storeFile") != null) {
-            create("publicacion") {
-                storeFile = file(propiedadesDeFirma.getProperty("storeFile"))
-                storePassword = propiedadesDeFirma.getProperty("storePassword")
-                keyAlias = propiedadesDeFirma.getProperty("keyAlias")
-                keyPassword = propiedadesDeFirma.getProperty("keyPassword")
-
-                // v2 y v3 además de v1: sin ellas, Android 11+ rechaza el APK.
-                enableV1Signing = true
-                enableV2Signing = true
-                enableV3Signing = true
+        create("release") {
+            if (hayKeystoreDePublicacion) {
+                storeFile = file(almacenDeFirma!!)
+                storePassword = datoFirma("storePassword", "DRACPASTE_STORE_PASSWORD")
+                keyAlias = datoFirma("keyAlias", "DRACPASTE_KEY_ALIAS")
+                keyPassword = datoFirma("keyPassword", "DRACPASTE_KEY_PASSWORD")
+            } else {
+                // Sin claves, se firma con la de depuración: cualquiera puede compilar,
+                // pero publicar así lo impide el script de publicación.
+                storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
             }
+
+            // v2 y v3 además de v1: sin ellas, Android 11+ rechaza el APK.
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
         }
     }
 
@@ -71,7 +90,7 @@ android {
                 "proguard-rules.pro",
             )
 
-            signingConfig = signingConfigs.findByName("publicacion")
+            signingConfig = signingConfigs.getByName("release")
 
             // El APK de tests instrumentados también se minifica, porque corre sobre este
             // mismo build. Estas reglas son solo para él.
@@ -94,6 +113,8 @@ android {
 
     buildFeatures {
         compose = true
+        // El actualizador compara la versión remota contra BuildConfig.VERSION_CODE.
+        buildConfig = true
     }
 
     packaging {
@@ -106,6 +127,9 @@ android {
 
 dependencies {
     implementation(project(":protocolo"))
+
+    // Auto-actualización fuera de Play Store, el mismo módulo que el resto de sus apps.
+    implementation(project(":actualizador"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

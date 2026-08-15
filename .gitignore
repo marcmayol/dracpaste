@@ -9,6 +9,8 @@ android/.kotlin/
 *.jks
 *.keystore
 keystore.properties
+# La plantilla sí se versiona: es la que documenta qué campos hacen falta.
+!keystore.properties.example
 
 # .NET
 windows/**/bin/

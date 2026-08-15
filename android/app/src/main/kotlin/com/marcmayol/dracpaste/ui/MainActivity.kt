@@ -48,6 +48,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
+import com.marcm.actualizador.Actualizador
+import com.marcm.actualizador.Modo
+import com.marcmayol.dracpaste.DracPasteApp
 import com.marcmayol.dracpaste.datos.AlmacenIdentidad
 import com.marcmayol.dracpaste.datos.DesemparejarPc
 import com.marcmayol.dracpaste.datos.EmparejarConPc
@@ -57,22 +62,38 @@ import com.marcmayol.dracpaste.servicio.ServicioDracPaste
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    private val actualizador get() = (application as DracPasteApp).actualizador
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        lifecycleScope.launch {
+            actualizador.comprobar(Modo.AUTOMATICO)
+        }
+
         setContent {
             TemaDracPaste {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    Pantalla()
+                    Pantalla(actualizador)
                 }
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        // Al volver de los ajustes del sistema, quizá el usuario acaba de conceder el
+        // permiso de instalar aplicaciones: hay que retomar donde se quedó.
+        actualizador.onPermisoQuizaConcedido()
+    }
 }
 
 @Composable
-private fun Pantalla() {
+private fun Pantalla(actualizador: Actualizador) {
     val contexto = LocalContext.current
     val ambito = rememberCoroutineScope()
+    val estadoActualizacion by actualizador.estado.collectAsStateWithLifecycle()
 
     val registro = remember { RegistroPcs(contexto) }
     val almacen = remember { AlmacenIdentidad(contexto) }
@@ -155,6 +176,11 @@ private fun Pantalla() {
         Text(
             "Tu portapapeles compartido con el PC, sin nube y sin cuenta.",
             style = MaterialTheme.typography.bodyMedium,
+        )
+
+        BannerActualizacion(
+            estado = estadoActualizacion,
+            onActualizar = { actualizador.actualizarAhora() },
         )
 
         if (escaneando) {
