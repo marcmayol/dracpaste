@@ -34,6 +34,17 @@
             </intent-filter>
         </activity>
 
+        <!-- El plan B cuando el fabricante no deja escribir en el portapapeles desde
+             segundo plano: una ventana invisible que lo escribe con el foco puesto y se
+             cierra. excludeFromRecents para que no aparezca en la lista de apps. -->
+        <activity
+            android:name=".servicio.ActividadPegar"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.DracPaste.Invisible" />
+
         <!-- El tipo connectedDevice es el que Android permite para mantener una
              conexión con otro aparato, y es obligatorio declararlo desde Android 14. -->
         <service

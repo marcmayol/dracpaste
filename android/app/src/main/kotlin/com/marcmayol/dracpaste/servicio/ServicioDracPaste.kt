@@ -16,6 +16,9 @@ import androidx.lifecycle.lifecycleScope
 import com.marcmayol.dracpaste.R
 import com.marcmayol.dracpaste.datos.AlmacenIdentidad
 import com.marcmayol.dracpaste.datos.RegistroPcs
+import com.marcmayol.dracpaste.portapapeles.GestorPortapapeles
+import com.marcmayol.dracpaste.protocolo.mensajes.Clip
+import com.marcmayol.dracpaste.protocolo.sesion.AntiEco
 import com.marcmayol.dracpaste.protocolo.sesion.EstadoConexion
 import com.marcmayol.dracpaste.red.ClienteDracPaste
 import com.marcmayol.dracpaste.red.DescubridorNsd
@@ -37,9 +40,19 @@ class ServicioDracPaste : LifecycleService() {
 
     private lateinit var registro: RegistroPcs
     private lateinit var cliente: ClienteDracPaste
+    private lateinit var portapapeles: GestorPortapapeles
+
+    /**
+     * Compartido con el resto de la app: la misma instancia que consultará la activity
+     * de captura de la Fase 3 antes de reenviar lo que lea.
+     */
+    private val antiEco = AntiEco()
 
     private var ultimoEstado: EstadoConexion = EstadoConexion.SIN_EMPAREJAR
     private var ultimoDetalle: String? = null
+
+    /** Clip que el sistema no dejó escribir y espera a que el usuario toque la acción. */
+    private var clipPendienteDePegar: String? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -47,13 +60,10 @@ class ServicioDracPaste : LifecycleService() {
 
         val identidad = AlmacenIdentidad(this).cargarOCrear()
         registro = RegistroPcs(this)
+        portapapeles = GestorPortapapeles(this)
         cliente = ClienteDracPaste(identidad, DescubridorNsd(this), lifecycleScope)
 
-        cliente.alRecibirClip = { clip ->
-            // La escritura en el portapapeles llega en la Fase 2. De momento se enseña
-            // en la notificación, que es lo que valida el túnel de la Fase 1.
-            notificar(resumir(clip.texto()))
-        }
+        cliente.alRecibirClip = { clip -> escribirClipRecibido(clip) }
 
         cliente.alLocalizarPc = { deviceId, ip, puerto ->
             registro.recordarDireccion(deviceId, ip, puerto)
@@ -96,11 +106,40 @@ class ServicioDracPaste : LifecycleService() {
             ACCION_RECONECTAR -> cliente.despertar()
             ACCION_RED_CAMBIADA -> cliente.redCambiada()
             ACCION_RELEER_EMPAREJAMIENTO -> conectarConElPcActivo()
+            ACCION_CLIP_PEGADO -> {
+                // El usuario ya ha pegado el clip que el sistema no dejó escribir: la
+                // notificación vuelve a su estado normal.
+                clipPendienteDePegar = null
+                notificar(null)
+            }
         }
 
         // START_STICKY: si el sistema mata el proceso por memoria, que lo vuelva a
         // levantar. Es lo que hace que la sincronización se recupere sola.
         return START_STICKY
+    }
+
+    /**
+     * Escribe en el portapapeles un clip que llega del PC.
+     *
+     * Si el fabricante lo impide desde segundo plano —pasa en algunos OEM—, no se pierde
+     * el clip: se guarda y la notificación ofrece «Toca para pegar», que abre la activity
+     * invisible y lo escribe con el foco puesto (`PLAN.md` §7).
+     */
+    private fun escribirClipRecibido(clip: Clip) {
+        // Se anota **antes** de escribir: en cuanto se escriba, el portapapeles cambia, y
+        // si la marca no estuviera ya puesta, el siguiente envío devolvería este mismo
+        // clip al PC y empezaría el bucle.
+        antiEco.marcarRecibido(clip.originId)
+
+        val texto = clip.texto()
+        if (portapapeles.escribir(texto)) {
+            clipPendienteDePegar = null
+            notificar("Recibido de ${registro.activo()?.nombre ?: "el PC"}")
+        } else {
+            clipPendienteDePegar = texto
+            notificar(null)
+        }
     }
 
     private fun conectarConElPcActivo() {
@@ -176,13 +215,31 @@ class ServicioDracPaste : LifecycleService() {
 
         val constructor = NotificationCompat.Builder(this, CANAL)
             .setSmallIcon(R.drawable.ic_notificacion)
-            .setContentTitle(titulo)
-            .setContentText(texto)
+            .setContentTitle(if (clipPendienteDePegar != null) "Clip recibido, toca para pegarlo" else titulo)
+            .setContentText(if (clipPendienteDePegar != null) resumir(clipPendienteDePegar!!) else texto)
             .setContentIntent(abrir)
             .setOngoing(true)
             .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
+
+        // Solo aparece cuando el sistema no ha dejado escribir en segundo plano: en el
+        // caso normal, el texto ya está en el portapapeles y este botón sobraría.
+        if (clipPendienteDePegar != null) {
+            constructor.addAction(
+                R.drawable.ic_notificacion,
+                "Pegar",
+                PendingIntent.getActivity(
+                    this,
+                    1,
+                    Intent(this, ActividadPegar::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                        putExtra(ActividadPegar.EXTRA_TEXTO, clipPendienteDePegar)
+                    },
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+                ),
+            )
+        }
 
         return constructor.build()
     }
@@ -199,6 +256,7 @@ class ServicioDracPaste : LifecycleService() {
         const val ACCION_RECONECTAR = "com.marcmayol.dracpaste.RECONECTAR"
         const val ACCION_RED_CAMBIADA = "com.marcmayol.dracpaste.RED_CAMBIADA"
         const val ACCION_RELEER_EMPAREJAMIENTO = "com.marcmayol.dracpaste.RELEER_EMPAREJAMIENTO"
+        const val ACCION_CLIP_PEGADO = "com.marcmayol.dracpaste.CLIP_PEGADO"
 
         fun arrancar(contexto: Context, accion: String? = null) {
             val intent = Intent(contexto, ServicioDracPaste::class.java).apply {

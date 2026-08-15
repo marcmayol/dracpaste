@@ -240,3 +240,117 @@ nada a su lista.
 
 *Ya cubierto automáticamente*: la caducidad y el uso único del token tienen tests. Esta
 prueba confirma que el mensaje que ve el usuario es comprensible.
+
+---
+
+## Fase 2 · Windows → Android completo — CERRADA (2026-08-15)
+
+### Qué se hizo
+
+**Windows: el vigilante del portapapeles** (`VigilanteDelPortapapeles`). Usa
+`AddClipboardFormatListener` sobre una ventana *message-only*, así que el sistema avisa de
+cada copia en vez de tener la app preguntando: sin polling no hay consumo cuando nadie
+copia nada, que es casi todo el tiempo.
+
+Lleva **dos protecciones contra el eco**, no una:
+
+1. Un **formato de portapapeles propio** (`DracPasteOrigin`) que se pega a todo lo que
+   escribe la app. Si un aviso lo trae, el cambio es obra nuestra y se descarta.
+2. El **texto del último clip recibido**, por si el formato propio se pierde: algunos
+   gestores de portapapeles copian solo el texto y tiran el resto.
+
+Son dos porque, si falla el único que hay, el resultado no es un fallo silencioso sino un
+bucle infinito visible entre los dos aparatos. Además hay **debounce de 100 ms**, porque
+Office y otras aplicaciones disparan un aviso por cada formato que publican y un solo
+Ctrl+C llegaría tres o cuatro veces.
+
+También: reintentos al escribir (el portapapeles puede estar tomado por otra aplicación
+unos milisegundos), aviso al usuario cuando una copia pasa del máximo de 256 KiB, y envío
+en segundo plano para no congelar el escritorio mientras dura una escritura de red.
+
+**Android: la escritura y su plan B** (`GestorPortapapeles`, `ActividadPegar`).
+
+- El servicio escribe en el portapapeles cada clip que llega del PC.
+- Si el fabricante lo impide desde segundo plano —pasa en algunos OEM—, **el clip no se
+  pierde**: se guarda y la notificación cambia a «Clip recibido, toca para pegarlo» con un
+  botón que abre una activity invisible y lo escribe con el foco puesto.
+- El `origin_id` se marca **antes** de escribir. Si se marcara después, el aviso del
+  propio portapapeles podría llegar en medio y el clip saldría de vuelta hacia el PC.
+
+### Verificado automáticamente
+
+| Comprobación | Resultado |
+|---|---|
+| `gradlew :protocolo:test` | 99 tests, 0 fallos |
+| `gradlew :app:testDebugUnitTest` | 15 tests, 0 fallos |
+| `gradlew :app:assembleDebug` | Correcto |
+| `dotnet test` (solución completa) | 116 tests, 0 fallos (+4 omitidos a propósito) |
+| Arranque real de `DracPaste.exe` | Proceso vivo, escuchando en el puerto 47653, identidad generada y persistida |
+
+**El bucle de eco, probado de punta a punta** (`CicloAntiEcoTest` en Kotlin y
+`CicloAntiEcoTests` en C#): se simulan los dos dispositivos con su portapapeles y su
+anti-eco, se conectan, y se comprueba que un clip da **una sola vuelta**. Cubre el caso
+normal, copiar diez cosas seguidas, copiar lo mismo dos veces a mano, que los dos copien a
+la vez, y que el ciclo se corte aunque el reloj no avance —una red local es lo bastante
+rápida para que todo ocurra en el mismo milisegundo, así que la caducidad de la marca no
+puede ser lo que rompa el bucle—.
+
+### Una decisión que conviene conocer
+
+**Los tests del vigilante del portapapeles están escritos pero desactivados**
+(`VigilanteDelPortapapelesTests`, 4 tests con `Skip`). No hay forma de probar
+`AddClipboardFormatListener` sin escribir en el portapapeles del sistema, que es uno solo y
+compartido con lo que el usuario esté haciendo: ejecutarlos sin avisar le borraría lo que
+tuviera copiado, y si era algo con formato no se podría restaurar.
+
+Para ejecutarlos, con el portapapeles vacío, hay que quitar los `Skip` del fichero. La
+lógica de rebote —que es la parte donde de verdad se cometen errores— sí está cubierta
+siempre por `CicloAntiEcoTests`, que no toca nada del sistema.
+
+### Pruebas manuales pendientes
+
+**M2.1 · Copiar en el PC y pegar en el móvil**
+
+1. Con el par emparejado y la notificación en «Conectado», copiar un texto en el PC.
+2. Ir al móvil y pegar en cualquier app.
+
+*Resultado esperado*: el texto está ahí, **en menos de un segundo** desde la copia. Repetir
+con acentos, con un emoji y con un texto largo (varios párrafos).
+
+**M2.2 · No hay bucle al copiar repetidamente**
+
+1. Copiar diez textos distintos en el PC, uno detrás de otro, sin pausas largas.
+2. Observar la notificación del móvil y el icono de la bandeja.
+
+*Resultado esperado*: el móvil acaba con el último texto y nada se queda "parpadeando". En
+el PC, el portapapeles no cambia solo después de la última copia.
+
+*Ya cubierto automáticamente*: `CicloAntiEcoTests`. Esta prueba confirma que el
+comportamiento se mantiene sobre el portapapeles real de Windows, que es donde vive el
+formato propio.
+
+**M2.3 · Un Ctrl+C en Word llega una sola vez**
+
+1. Copiar una tabla o texto con formato desde Word o Excel.
+
+*Resultado esperado*: el texto plano llega al móvil **una vez**, no tres o cuatro. Es lo
+que comprueba el debounce de 100 ms.
+
+**M2.4 · El servicio sobrevive en segundo plano**
+
+1. Con el par conectado, apagar la pantalla del móvil y dejarlo **30 minutos**.
+2. Sin tocar el móvil, copiar un texto en el PC.
+3. Encender la pantalla y pegar.
+
+*Resultado esperado*: el texto está en el portapapeles. La notificación seguía en
+«Conectado» todo el rato. Este es el criterio que más probablemente falle en móviles
+Xiaomi o Samsung sin la exención de batería, que llega en la Fase 5.
+
+**M2.5 · El plan B de la escritura bloqueada**
+
+Solo aplica si en el móvil concreto el sistema no deja escribir en segundo plano.
+
+*Resultado esperado*: en vez de perderse el clip, la notificación cambia a «Clip recibido,
+toca para pegarlo» con un botón «Pegar». Al pulsarlo, el texto queda en el portapapeles y
+la notificación vuelve a su estado normal. En un Pixel esto no debería llegar a verse
+nunca.

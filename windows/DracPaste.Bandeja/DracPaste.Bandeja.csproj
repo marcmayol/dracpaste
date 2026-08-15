@@ -25,6 +25,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Las clases del nucleo son internal porque nadie fuera de la app las usa, pero
+         sus tests si necesitan verlas. -->
+    <InternalsVisibleTo Include="DracPaste.Bandeja.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\DracPaste.Protocolo\DracPaste.Protocolo.csproj" />
   </ItemGroup>
 
