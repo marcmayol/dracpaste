@@ -32,6 +32,9 @@ internal sealed class SesionActiva
 
     public string Nombre { get; }
 
+    /// <summary>Quién está al otro lado. Lo fija el handshake, así que es de fiar.</summary>
+    public string DeviceIdRemoto => _sesion.DeviceIdRemoto;
+
     public bool Viva => !_cierre.IsCancellationRequested && _cliente.Connected;
 
     /// <summary>Lee mensajes hasta que la conexión muere.</summary>

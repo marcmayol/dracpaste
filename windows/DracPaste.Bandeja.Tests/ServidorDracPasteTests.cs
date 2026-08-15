@@ -230,6 +230,124 @@ public class ServidorDracPasteTests : IDisposable
         Assert.Equal(7, pong.Seq);
     }
 
+    [Fact]
+    public async Task DesemparejarAvisaAlMovilYBorraSuClave()
+    {
+        var (servidor, identidad, registro, tokens) = Montar();
+        await using var _s = servidor;
+
+        var movil = Cripto.GenerarParDeClaves();
+        await EmparejarComoMovil(servidor, identidad, tokens, movil);
+
+        using var cliente = await Conectar(servidor.Puerto);
+        var flujo = cliente.GetStream();
+        var sesion = await Handshake.IniciarAsync(
+            flujo, IdMovil, identidad.DeviceId, Derivacion.ClavePar(movil.Privada, identidad.Publica));
+        await EsperarA(() => servidor.SesionesEstablecidas == 1, "no se registró la sesión");
+
+        await servidor.DesemparejarAsync(IdMovil);
+
+        // El móvil recibe el aviso, así que puede borrar su clave también.
+        var mensaje = CodecMensajes.Decodificar(sesion.Entrante.Abrir(await Framing.LeerAsync(flujo)));
+        Assert.IsType<Unpair>(mensaje);
+        Assert.Empty(registro.Todos);
+    }
+
+    [Fact]
+    public async Task TrasDesemparejarElMovilYaNoPuedeConectar()
+    {
+        // Es lo que hace que desemparejar signifique algo: sin esto, el móvil seguiría
+        // entrando con la clave que ya tenía guardada.
+        var (servidor, identidad, _, tokens) = Montar();
+        await using var _s = servidor;
+
+        var movil = Cripto.GenerarParDeClaves();
+        await EmparejarComoMovil(servidor, identidad, tokens, movil);
+        var clavePar = Derivacion.ClavePar(movil.Privada, identidad.Publica);
+
+        await servidor.DesemparejarAsync(IdMovil);
+
+        using var cliente = await Conectar(servidor.Puerto);
+        await Assert.ThrowsAnyAsync<Exception>(
+            () => Handshake.IniciarAsync(cliente.GetStream(), IdMovil, identidad.DeviceId, clavePar));
+    }
+
+    [Fact]
+    public async Task DesemparejarUnMovilQueNoEstaConectadoTambienLoOlvida()
+    {
+        // El móvil puede estar apagado o en otra red. Que el usuario tenga que esperar a
+        // que aparezca para poder desemparejarlo sería absurdo.
+        var (servidor, identidad, registro, tokens) = Montar();
+        await using var _s = servidor;
+
+        await EmparejarComoMovil(servidor, identidad, tokens, Cripto.GenerarParDeClaves());
+        Assert.Single(registro.Todos);
+
+        await servidor.DesemparejarAsync(IdMovil);
+
+        Assert.Empty(registro.Todos);
+    }
+
+    [Fact]
+    public async Task UnUnpairDelMovilHaceQueElPcOlvideSuClave()
+    {
+        // El desemparejamiento iniciado desde el otro lado tiene que surtir el mismo
+        // efecto: si no, el usuario desempareja en el móvil y el PC sigue guardando una
+        // clave que ya no sirve para nada.
+        var (servidor, identidad, registro, tokens) = Montar();
+        await using var _s = servidor;
+
+        var movil = Cripto.GenerarParDeClaves();
+        await EmparejarComoMovil(servidor, identidad, tokens, movil);
+
+        using var cliente = await Conectar(servidor.Puerto);
+        var flujo = cliente.GetStream();
+        var sesion = await Handshake.IniciarAsync(
+            flujo, IdMovil, identidad.DeviceId, Derivacion.ClavePar(movil.Privada, identidad.Publica));
+
+        await Framing.EscribirAsync(flujo, sesion.Saliente.Sellar(CodecMensajes.Codificar(new Unpair())));
+
+        await EsperarA(() => registro.Todos.Count == 0, "el PC no olvidó el móvil tras el UNPAIR");
+    }
+
+    [Fact]
+    public async Task VariosMovilesEmparejadosConvivenSinPisarseLasClaves()
+    {
+        // Cada pareja tiene su clave: comprometer o desemparejar una no puede afectar a
+        // las demás (PLAN.md §3.3).
+        var (servidor, identidad, registro, tokens) = Montar();
+        await using var _s = servidor;
+
+        var primero = Cripto.GenerarParDeClaves();
+        var segundo = Cripto.GenerarParDeClaves();
+        const string idSegundo = "3333333333333333cccccccccccccccc";
+
+        await EmparejarComoMovil(servidor, identidad, tokens, primero);
+        await EmparejarComoMovil(servidor, identidad, tokens, segundo, idSegundo, "Tablet");
+
+        Assert.Equal(2, registro.Todos.Count);
+        Assert.NotEqual(
+            registro.ClaveParDe(IdMovil, identidad),
+            registro.ClaveParDe(idSegundo, identidad));
+
+        await servidor.DesemparejarAsync(IdMovil);
+
+        // El otro sigue pudiendo entrar con su propia clave.
+        Assert.Single(registro.Todos);
+        Assert.Equal(idSegundo, registro.Todos.Single().DeviceId);
+
+        using var cliente = await Conectar(servidor.Puerto);
+        var sesion = await Handshake.IniciarAsync(
+            cliente.GetStream(),
+            idSegundo,
+            identidad.DeviceId,
+            Derivacion.ClavePar(segundo.Privada, identidad.Publica));
+
+        // Visto desde el móvil, el extremo remoto es el PC.
+        Assert.Equal(identidad.DeviceId, sesion.DeviceIdRemoto);
+        await EsperarA(() => servidor.HayMovilConectado, "el segundo móvil no consiguió sesión");
+    }
+
     // ------------------------------------------------------------------ Apoyo
 
     private (ServidorDracPaste Servidor, Identidad Identidad, RegistroEmparejados Registro, GestorTokens Tokens) Montar()
@@ -248,7 +366,9 @@ public class ServidorDracPasteTests : IDisposable
         ServidorDracPaste servidor,
         Identidad identidad,
         GestorTokens tokens,
-        ParDeClaves movil)
+        ParDeClaves movil,
+        string deviceId = IdMovil,
+        string nombre = "Pixel")
     {
         var qr = new DatosQr
         {
@@ -262,7 +382,7 @@ public class ServidorDracPasteTests : IDisposable
 
         using var cliente = await Conectar(servidor.Puerto);
         return await Emparejamiento.IniciarAsync(
-            cliente.GetStream(), movil.Privada, IdMovil, "Pixel", qr);
+            cliente.GetStream(), movil.Privada, deviceId, nombre, qr);
     }
 
     private static async Task<TcpClient> Conectar(int puerto)

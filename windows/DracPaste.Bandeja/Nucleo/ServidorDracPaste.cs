@@ -44,6 +44,9 @@ public sealed class ServidorDracPaste : IAsyncDisposable
     /// <summary>Se dispara al completarse un emparejamiento.</summary>
     public event Action<DispositivoEmparejado>? DispositivoEmparejado;
 
+    /// <summary>Se dispara cuando un móvil se desempareja desde su lado.</summary>
+    public event Action<string>? DispositivoOlvidado;
+
     /// <summary>¿Hay un móvil conectado ahora mismo?</summary>
     public bool HayMovilConectado => _sesion is { Viva: true };
 
@@ -105,6 +108,37 @@ public sealed class ServidorDracPaste : IAsyncDisposable
             EstadoCambiado?.Invoke("Esperando al móvil");
             return false;
         }
+    }
+
+    /// <summary>
+    /// Desempareja un móvil: le avisa si está conectado y borra su clave de este PC.
+    ///
+    /// El orden importa. Se manda el <c>UNPAIR</c> **antes** de olvidar el dispositivo,
+    /// porque después de borrar la clave ya no habría forma de cifrarle nada. Si el móvil
+    /// no está conectado, se le olvida igual: se encontrará con que este PC ya no le
+    /// reconoce, que es justo lo que se busca.
+    /// </summary>
+    public async Task DesemparejarAsync(string deviceId, CancellationToken ct = default)
+    {
+        var sesion = _sesion;
+        if (sesion is { Viva: true } && sesion.DeviceIdRemoto == deviceId)
+        {
+            try
+            {
+                await sesion.EnviarAsync(new Unpair(), ct).ConfigureAwait(false);
+            }
+            catch (Exception)
+            {
+                // Si no llega el aviso, el móvil se enterará al reconectar y fallar el
+                // handshake. No es motivo para dejar de desemparejar por este lado.
+            }
+
+            sesion.Cerrar();
+            _sesion = null;
+        }
+
+        _registro.Olvidar(deviceId);
+        EstadoCambiado?.Invoke(_registro.Todos.Count == 0 ? "Sin emparejar" : "Esperando al móvil");
     }
 
     private async Task BucleAceptacionAsync(CancellationToken ct)
@@ -221,6 +255,15 @@ public sealed class ServidorDracPaste : IAsyncDisposable
         // anterior es un socket zombi que nadie va a cerrar desde el otro lado.
         _sesion?.Cerrar();
         var activa = new SesionActiva(cliente, conElPrimerFrame, sesion, nombre);
+
+        // Si el desemparejamiento lo inicia el móvil, este PC tiene que borrar su clave
+        // igual que si lo hubiera pedido el usuario aquí.
+        activa.Desemparejado += id =>
+        {
+            _registro.Olvidar(id);
+            DispositivoOlvidado?.Invoke(id);
+        };
+
         _sesion = activa;
         Interlocked.Increment(ref _sesionesEstablecidas);
         EstadoCambiado?.Invoke($"Conectado con {nombre}");

@@ -164,36 +164,27 @@ internal sealed class ContextoBandeja : ApplicationContext
             DeviceId = _identidad.DeviceId,
         };
 
-        // El QR gráfico llega en la Fase 4. Por ahora se muestra el JSON, que es lo que
-        // la Fase 1 necesita para emparejar pegándolo a mano en el móvil.
+        // La huella depende de la clave pública del móvil, que todavía no se conoce: se
+        // calcula al emparejar y se enseña entonces en el globo de la bandeja.
         using var ventana = new VentanaEmparejamiento(qr);
+
+        // Al cerrar la ventana, el código deja de valer aunque no haya caducado: quien
+        // ha dejado de mirar la pantalla no espera que su QR siga sirviendo.
         ventana.ShowDialog();
+        _tokens.Revocar();
     }
 
     private void AbrirAjustes()
     {
-        var emparejados = _registro.Todos;
-        var lista = emparejados.Count == 0
-            ? "Ningún móvil emparejado todavía."
-            : string.Join(
-                Environment.NewLine,
-                emparejados.Select(d => $"· {d.Nombre} — huella {d.Huella}"));
-
-        MessageBox.Show(
-            $"""
-             Este PC: {_identidad.Nombre}
-             Puerto: {_servidor.Puerto}
-             Anuncio mDNS: {(_mdns.Anunciando ? "activo" : "detenido")}
-
-             Móviles emparejados:
-             {lista}
-
-             Los ajustes completos llegan en la Fase 5.
-             """,
-            "DracPaste",
-            MessageBoxButtons.OK,
-            MessageBoxIcon.Information);
+        using var ventana = new VentanaAjustes(_identidad, _registro, _servidor);
+        ventana.ShowDialog();
+        MostrarEstado(_registro.Todos.Count == 0 ? "Sin emparejar" : EstadoActual());
     }
+
+    private string EstadoActual() =>
+        _servidor.HayMovilConectado
+            ? $"Conectado con {_servidor.NombreMovilConectado}"
+            : "Esperando al móvil";
 
     private void AlCambiarModoDeEnergia(object sender, PowerModeChangedEventArgs e)
     {

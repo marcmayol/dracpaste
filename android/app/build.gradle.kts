@@ -70,6 +70,15 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.serialization.json)
 
+    // Escáner del QR de emparejamiento. Se usa el modelo de códigos de barras embebido
+    // en el APK, no el de Google Play Services: la app no debe depender de descargar
+    // nada en tiempo de ejecución ni de que Play Services esté instalado.
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    implementation(libs.mlkit.barcode.scanning)
+
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.graphics)

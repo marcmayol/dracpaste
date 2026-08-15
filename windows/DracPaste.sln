@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DracPaste.Bandeja", "DracPa
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DracPaste.Bandeja.Tests", "DracPaste.Bandeja.Tests\DracPaste.Bandeja.Tests.csproj", "{3DF6458E-69BC-48AB-82E4-FEC3EC65A490}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DracPaste.PruebaCruzada", "DracPaste.PruebaCruzada\DracPaste.PruebaCruzada.csproj", "{63EEE87A-7ADA-44C0-B014-65C422F75533}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,5 +38,9 @@ Global
 		{3DF6458E-69BC-48AB-82E4-FEC3EC65A490}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{3DF6458E-69BC-48AB-82E4-FEC3EC65A490}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{3DF6458E-69BC-48AB-82E4-FEC3EC65A490}.Release|Any CPU.Build.0 = Release|Any CPU
+		{63EEE87A-7ADA-44C0-B014-65C422F75533}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{63EEE87A-7ADA-44C0-B014-65C422F75533}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{63EEE87A-7ADA-44C0-B014-65C422F75533}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{63EEE87A-7ADA-44C0-B014-65C422F75533}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

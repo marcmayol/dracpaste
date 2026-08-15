@@ -480,3 +480,137 @@ no entra en un ciclo de «Enviado / Recibido».
 *Resultado esperado*: el móvil dice «Sin conexión con [PC]». Al reconectar, ese texto **no**
 aparece de pronto en el PC. Es la decisión del plan §4.3: sin cola de clips, porque algo
 copiado hace rato apareciendo cuando el usuario ya no se acuerda es peor que no enviarlo.
+
+---
+
+## Fase 4 · Emparejamiento pulido y multi-PC — CERRADA (2026-08-15)
+
+### Qué se hizo
+
+**El QR de verdad en Windows.** La ventana muestra un QR grande generado con QRCoder, la
+huella, una cuenta atrás de los dos minutos que dura el código y —debajo— el texto por si
+la cámara falla. El JSON lleva una clave pública de 32 bytes y un token de 16: copiarlo a
+mano es tedioso y fácil de estropear, pero una cámara sucia o una pantalla con poco brillo
+no pueden dejar al usuario sin poder emparejar, así que las dos vías conviven.
+
+Al cerrar la ventana, el token se revoca aunque no haya caducado: quien ha dejado de mirar
+la pantalla no espera que su código siga sirviendo.
+
+**El escáner en Android**, con CameraX y ML Kit. Se usa el modelo de códigos de barras
+**embebido en el APK**, no el de Google Play Services: emparejar no puede depender de
+descargar nada en ese momento ni de que Play Services esté instalado. Un QR se lee varias
+veces por segundo mientras esté delante, así que hay un cierre para que solo la primera
+cuente — si no, el emparejamiento se intentaría diez veces con un token que solo vale una
+y el usuario vería una ristra de errores.
+
+**Desemparejar, por los dos lados.** Desde el PC (ventana de ajustes con la lista, la
+huella y la fecha) y desde el móvil. En ambos casos se avisa al otro con un `UNPAIR`
+**antes** de borrar la clave, porque después ya no habría forma de cifrarle nada. Si el
+otro no está disponible, el olvido local sigue adelante igual: el usuario ha dicho que ya
+no quiere ese dispositivo, y que la app dependiera de alcanzarlo para obedecerle sería
+absurdo.
+
+**Multi-PC en el móvil**: lista de PCs emparejados con selector de destino activo y relevo
+automático si se desempareja el que estaba activo.
+
+### Verificado automáticamente
+
+| Comprobación | Resultado |
+|---|---|
+| `gradlew :protocolo:test` + `:app:testDebugUnitTest` | 129 tests, 0 fallos |
+| `dotnet test` (solución completa) | 123 tests, 0 fallos (+4 omitidos a propósito) |
+| **`scripts/prueba-cruzada.ps1`** | **Superada** |
+| Capturas de las ventanas de Windows | Revisadas y corregidas |
+| App instalada y arrancada en el emulador Android 14 | Pantalla revisada |
+
+### La prueba cruzada
+
+`scripts/prueba-cruzada.ps1` arranca el **servidor real de Windows** —el mismo
+`ServidorDracPaste` que usa la app de bandeja— y lanza contra él un cliente **Kotlin** que
+se empareja, abre sesión y cruza un clip en cada dirección.
+
+Es la única prueba que demuestra que las dos implementaciones se entienden **de verdad**.
+Los vectores de `docs/protocol.md` §7 verifican que Bouncy Castle y libsodium producen los
+mismos bytes, pero eso no garantiza que el diálogo completo funcione entre dos lenguajes:
+un campo JSON mal nombrado, un contador de nonce desalineado o un `flush` que falta no
+aparecen en ningún vector.
+
+El texto de prueba lleva acentos y un emoji (`desde-kotlin-àéî-🐉`) y se comprueba que
+llega **byte a byte**, incluido su `origin_id`: si ese hash no coincidiera entre los dos
+lados, el anti-eco no reconocería los clips del otro y rebotarían indefinidamente.
+
+Resultado: emparejamiento correcto, misma huella en los dos extremos, y los dos textos
+cruzados sin alteración.
+
+### La interfaz, mirada además de compilada
+
+Las ventanas de Windows se dibujan a PNG en los tests (`CapturaDeVentanasTests`) y se han
+revisado. Que una ventana compile no dice nada de cómo se ve, y mirarlas destapó tres
+defectos que ningún test habría cogido:
+
+1. La línea «Este PC: … · IP:puerto» quedaba **cortada por la mitad**: el bloque de texto
+   tenía cuatro líneas y solo 72 px de alto.
+2. La ventana enseñaba «Huella: se mostrará al terminar» en la tipografía monoespaciada
+   grande reservada para la huella real, como si eso fuera una huella. Ahora, cuando
+   todavía no se conoce —depende de la clave pública del móvil, que llega al emparejar—,
+   se explica con otro texto y otra tipografía.
+3. El texto alternativo aparecía **resaltado en azul** al abrirse, como si el usuario ya lo
+   hubiera seleccionado.
+
+En la ventana de ajustes, las columnas sumaban más que el ancho disponible y salía una
+barra de desplazamiento horizontal con la última columna cortada.
+
+En Android, la app se instaló en el emulador (Android 14) y se revisó la pantalla
+principal. La estructura y los textos están bien; el tema sigue siendo el morado por
+defecto de Material 3, no la identidad verde y oro de la familia Drac. Queda anotado para
+la Fase 6.
+
+### Pruebas manuales pendientes
+
+**M4.1 · Emparejar escaneando, en menos de 30 segundos**
+
+1. En el PC: bandeja → «Emparejar un móvil…».
+2. En el móvil: abrir DracPaste → «Escanear el código del PC» → conceder la cámara.
+3. Apuntar al QR.
+
+*Resultado esperado*: el emparejamiento se completa **sin teclear nada**. El móvil muestra
+una huella tipo `A3F2-9C71` y el PC muestra un globo con **la misma**. Repetir con poca luz
+y con la pantalla del PC a brillo bajo.
+
+**M4.2 · El código caduca a los dos minutos**
+
+1. Abrir la ventana de emparejamiento y dejarla pasar de la cuenta atrás.
+
+*Resultado esperado*: la cuenta atrás llega a cero y la ventana avisa de que hay que
+cerrarla y volver a abrirla. Escanear ese QR caducado falla.
+
+**M4.3 · Desemparejar impide reconectar** *(prueba crítica)*
+
+1. Con el par conectado, en el PC: Ajustes → seleccionar el móvil → «Desemparejar».
+2. Confirmar.
+
+*Resultado esperado*: el móvil pasa a «Sin emparejar» **solo**, sin tocarlo. Copiar algo en
+el PC ya no llega. Reiniciar el móvil no lo arregla: hace falta emparejar de nuevo.
+
+Repetir la prueba en el otro sentido (desemparejar desde el móvil) y también **con el PC
+apagado**, para confirmar que el móvil lo olvida igual.
+
+**M4.4 · Con dos PCs, los clips van solo al activo**
+
+Necesita un segundo PC (o el mismo con otro usuario de Windows).
+
+1. Emparejar el móvil con dos PCs.
+2. En el móvil, comprobar que solo uno está marcado como «Destino activo».
+3. Copiar algo en el PC **no** activo.
+4. Cambiar el destino activo en el móvil y volver a copiar en cada uno.
+
+*Resultado esperado*: solo llega lo que se copia en el PC activo. Cambiar de activo surte
+efecto **sin reiniciar** ni la app ni el móvil.
+
+**M4.5 · Emparejar pegando el texto sigue funcionando**
+
+1. En el PC, pulsar «Copiar el texto» en la ventana de emparejamiento.
+2. Pasarlo al móvil y usar «La cámara no funciona: pegar el texto».
+
+*Resultado esperado*: empareja igual. Es la salida cuando la cámara está rota, sucia o el
+usuario le ha denegado el permiso.

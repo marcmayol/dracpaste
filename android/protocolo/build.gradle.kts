@@ -35,3 +35,13 @@ tasks.register<JavaExec>("imprimirVectores") {
     classpath = sourceSets["test"].runtimeClasspath
     mainClass.set("com.marcmayol.dracpaste.protocolo.cripto.ImprimirVectores")
 }
+
+// Hace de móvil contra el servidor real de Windows. Lo lanza scripts/prueba-cruzada.ps1:
+// es la única forma de demostrar que Bouncy Castle y libsodium se entienden por un socket
+// de verdad, y no solo sobre vectores copiados en los dos lados.
+tasks.register<JavaExec>("clienteDePrueba") {
+    group = "verification"
+    description = "Cliente Kotlin que empareja y habla con el servidor C#"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.marcmayol.dracpaste.protocolo.ClienteDePrueba")
+}
