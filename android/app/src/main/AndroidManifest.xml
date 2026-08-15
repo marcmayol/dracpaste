@@ -34,6 +34,13 @@
             </intent-filter>
         </activity>
 
+        <!-- El tipo connectedDevice es el que Android permite para mantener una
+             conexión con otro aparato, y es obligatorio declararlo desde Android 14. -->
+        <service
+            android:name=".servicio.ServicioDracPaste"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
     </application>
 
 </manifest>
