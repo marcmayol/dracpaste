@@ -11,7 +11,9 @@
 ; saltarse. Como esto se distribuye fuera de la Store, es la unica via practica.
 
 #define MiApp "DracPaste"
-#define MiVersion "0.1.0"
+; Debe coincidir con el versionName de android/app/build.gradle.kts: las dos mitades se
+; publican juntas en la misma Release y tener versiones distintas solo confunde.
+#define MiVersion "1.0"
 #define MiAutor "marcmayol.com"
 #define MiEjecutable "DracPaste.exe"
 
