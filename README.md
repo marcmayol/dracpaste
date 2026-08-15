@@ -76,19 +76,47 @@ $env:PATH = "$env:USERPROFILE\.dotnet;$env:PATH"
 
 El motivo está en [`docs/decisions.md`](docs/decisions.md) D-001.
 
-### Publicar
+### Publicar una versión
+
+DracPaste se distribuye por [DracApps](https://marcmayol.com/DracApps/) y se actualiza
+sola: el módulo `:actualizador` consulta
+[`marcmayol.com/dracpaste/updates.json`](https://marcmayol.com/dracpaste/updates.json),
+compara el `versionCode` y, si hay novedad, descarga el APK de la Release y **verifica su
+SHA-256** antes de instalarlo.
+
+El ritual completo:
 
 ```powershell
-# Instalador de Windows -> dist\DracPaste-<version>-instalador.exe
+# 1. Subir versionCode y versionName en android/app/build.gradle.kts
+#    (y #define MiVersion en windows/instalador/DracPaste.iss, que van juntas)
+
+# 2. Instalador de Windows -> dist\DracPaste-<version>-instalador.exe
 powershell -ExecutionPolicy Bypass -File scripts\publicar-windows.ps1
 
-# APK firmado -> dist\DracPaste-<version>.apk
-# La primera vez crea la keystore y pide una contraseña. Guárdala: sin ella no se
-# pueden publicar actualizaciones que Android acepte encima de la versión instalada.
-powershell -ExecutionPolicy Bypass -File scripts\publicar-android.ps1
+# 3. Commitear TODO. El script aborta si queda algo suelto: si no, el tag de la
+#    Release quedaría sobre un commit que no contiene el código publicado.
+
+# 4. Ensayo y publicación
+python scripts\publicar_release.py --dry-run --notas "Qué cambia"
+python scripts\publicar_release.py --notas "Qué cambia"
 ```
 
-Los dos scripts se niegan a publicar si hay algún test en rojo.
+El script compila el APK **firmado**, comprueba que el `versionCode` del APK, el del
+manifiesto y el declarado en Gradle coinciden y superan al ya publicado, verifica que la
+firma es la de siempre y **nunca la de depuración**, crea la Release con el APK y el
+instalador de Windows juntos —son la misma versión— y publica el manifiesto en Pages,
+esperando a que la URL pública lo sirva.
+
+Para que aparezca actualizado en la tienda, en `DracApps`:
+
+```powershell
+python scripts\generar_catalogo.py --dry-run
+python scripts\generar_catalogo.py --publicar
+```
+
+(También se regenera solo cada 6 horas con un cron de GitHub Actions.)
+
+Los tests corren antes de compilar: no se publica nada con algo en rojo.
 
 ### Comprobar que los dos lados se entienden
 

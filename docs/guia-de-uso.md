@@ -17,7 +17,8 @@ de tu red local.
 
 ### En el PC
 
-1. Ejecuta `DracPaste-0.1.0-instalador.exe`.
+1. Descarga `DracPaste-1.0-instalador.exe` de la
+   [última Release](https://github.com/marcmayol/dracpaste/releases/latest) y ejecútalo.
 2. Windows mostrará un aviso azul de SmartScreen porque el instalador no está firmado con
    un certificado de pago. Pulsa **«Más información» → «Ejecutar de todas formas»**.
 3. Marca «Arrancar DracPaste al iniciar sesión» si quieres que esté siempre listo.
@@ -29,12 +30,19 @@ DracPaste: no tiene ventana principal.
 
 ### En el móvil
 
-1. Copia el `DracPaste-0.1.0.apk` al móvil.
-2. Ábrelo. Android pedirá permiso para instalar aplicaciones de esta procedencia: es lo
-   normal al instalar fuera de Play Store.
-3. Al abrir la app por primera vez, concede el permiso de **notificaciones**. No es un
+La forma cómoda es desde **[DracApps](https://marcmayol.com/DracApps/)**, que instala y
+mantiene al día todas las apps. Si prefieres el APK suelto, está en la
+[última Release](https://github.com/marcmayol/dracpaste/releases/latest).
+
+1. Instala el APK. Android pedirá permiso para instalar aplicaciones de esta procedencia:
+   es lo normal al instalar fuera de Play Store.
+2. Al abrir la app por primera vez, concede el permiso de **notificaciones**. No es un
    capricho: sin la notificación permanente, Android no permite mantener la conexión en
    segundo plano y DracPaste solo funcionaría con la app abierta.
+
+**Se actualiza sola.** Cuando haya una versión nueva, la propia app te avisa con un aviso
+arriba y se encarga del resto. Antes de instalar nada comprueba que el archivo descargado
+es exactamente el que se publicó; si no cuadra, lo descarta.
 
 ---
 
