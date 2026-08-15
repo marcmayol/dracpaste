@@ -1,8 +1,8 @@
 {
-  "versionCode": 1,
-  "versionName": "1.0",
-  "url": "https://github.com/marcmayol/dracpaste/releases/download/v1.0/dracpaste-v1.0.apk",
-  "sha256": "da5e5ea39c05e8587eeedde80b84e57a37eb69d46519c384104b52f5e0f26669",
-  "notas": "Primera version publica de DracPaste. Portapapeles compartido entre Android y Windows: solo red local, cifrado de extremo a extremo, sin nube y sin cuenta.",
+  "versionCode": 2,
+  "versionName": "1.1",
+  "url": "https://github.com/marcmayol/dracpaste/releases/download/v1.1/dracpaste-v1.1.apk",
+  "sha256": "f90813a98753f2f65d2c9c3079fa9b01bfe1c4dba20a322dfaf3781697dff446",
+  "notas": "Arregla el emparejamiento en un PC nuevo: sin una regla de firewall, el movil veia el PC pero la conexion moria en un timeout y el mensaje culpaba a la red. Ahora el instalador crea la regla, la app avisa si falta y ofrece crearla, y el mensaje del movil dice donde esta el problema de verdad.",
   "check_horas": 24
 }
