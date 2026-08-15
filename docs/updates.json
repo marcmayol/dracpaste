@@ -1,0 +1,8 @@
+{
+  "versionCode": 1,
+  "versionName": "1.0",
+  "url": "https://github.com/marcmayol/dracpaste/releases/download/v1.0/dracpaste-v1.0.apk",
+  "sha256": "da5e5ea39c05e8587eeedde80b84e57a37eb69d46519c384104b52f5e0f26669",
+  "notas": "Primera version publica de DracPaste. Portapapeles compartido entre Android y Windows: solo red local, cifrado de extremo a extremo, sin nube y sin cuenta.",
+  "check_horas": 24
+}
