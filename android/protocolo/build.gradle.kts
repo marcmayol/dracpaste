@@ -26,3 +26,12 @@ tasks.test {
         events("passed", "skipped", "failed")
     }
 }
+
+// Imprime los valores derivados de los vectores de prueba, para poder fijarlos en
+// docs/protocol.md §7 y en los tests de los dos lados.
+tasks.register<JavaExec>("imprimirVectores") {
+    group = "verification"
+    description = "Imprime los vectores de prueba derivados del protocolo"
+    classpath = sourceSets["test"].runtimeClasspath
+    mainClass.set("com.marcmayol.dracpaste.protocolo.cripto.ImprimirVectores")
+}

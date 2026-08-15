@@ -343,11 +343,34 @@ pub_pc     = de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f
 shared     = 4a5d9d5ba4ce2de1728e3bf480350f25e07e21c947d19e3376f09b3c1e161742
 ```
 
-De ahí, aplicando §2.2 y §2.3 con
+Aplicando §2.2 y §2.3 con
 `challenge_movil = 000102030405060708090a0b0c0d0e0f` y
-`challenge_pc = 101112131415161718191a1b1c1d1e1f`, salen `K_pair`, `K_m2p` y `K_p2m`.
-Los valores concretos están en los ficheros de test de ambos lados
+`challenge_pc = 101112131415161718191a1b1c1d1e1f`:
+
+```
+K_pair     = 7619334a99c42574fe2818c1166864c68727a329fb58f8647f2f6f61d6024c74
+K_m2p      = f0dbcb2507a2f78763fb7fda468ffc6a9fc8a55630153130d0725f5ac54d66f3
+K_p2m      = bd975ac0e20687bfa1dd130670c6659a2a1f8854fa1c924870f5e482814a4715
+
+# ChaCha20-Poly1305 de "hola" (UTF-8) con K_m2p y contador 0 -> ciphertext || tag
+cifrado    = 678e67f72a09b0970f17bb20686f7545b9f5b1bb
+
+# Huella de verificacion (§2.6)
+huella     = 9962-5B51
+
+# Retos de emparejamiento (§3.2) para token = 0f0e0d0c0b0a09080706050403020100
+reto_movil = 5af8673472d05d3ccd761485d419b651
+reto_pc    = 6bbd531bbad346bd2162feb25261c2e2
+
+# origin_id de "hola" (§5). Si los dos lados no calculan el mismo, el anti-eco no
+# funciona y los clips rebotan entre el movil y el PC.
+origin_id  = b221d9dbb083a7f33428d7c2a3c3198a
+```
+
+Estos valores están replicados en los ficheros de test de ambos lados
 (`VectoresProtocoloTest` en Kotlin, `VectoresProtocoloTests` en C#) y **deben coincidir**.
+Si una implementación se desvía, su test se pone en rojo sin necesidad de conectar los dos
+dispositivos.
 
 ---
 
