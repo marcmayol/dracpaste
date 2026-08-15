@@ -886,15 +886,20 @@ Hechas con un Pixel 8 Pro (Android 17) y la app de bandeja **real** en Windows, 
 
 | Prueba | Resultado |
 |---|---|
-| **M6.2 · El APK de publicación empareja** | **Sí.** Emparejamiento correcto contra la app real, con la misma huella en los dos lados. R8 no rompe el cifrado ni la serialización. |
-| **M3.1 · Móvil → PC** | El clip llega al portapapeles de Windows, con acentos y emoji **intactos**. |
-| **M2.1 · PC → móvil** | Se copia en el portapapeles del PC y el clip llega al otro extremo. |
+| **M6.2 · El APK de publicación empareja** | **Sí.** El Pixel 8 Pro emparejado con la app real: «MARC» como destino activo, huella `96C4-3AC4` **idéntica en los dos lados**. R8 no rompe el cifrado ni la serialización. |
+| **M2.1 · PC → móvil** | Se copia `del-PC-…-àéñ-🐉` en el PC y llega **byte a byte** al portapapeles del Pixel, acentos y emoji incluidos. |
+| **M3.1 · El botón de la notificación** *(la crítica)* | **Sí.** Al pulsar «Enviar portapapeles», la notificación pasa a «Enviado a MARC»: la ventana invisible leyó el portapapeles **con el foco puesto** y el envío salió. Es el riesgo número uno del plan, confirmado en hardware real. |
+| **M3.2 · Compartir** | El share target envía el texto al PC sin tocar el portapapeles del móvil. |
+| **Anti-eco** | Apareció solo, y funcionando: un texto que acababa de llegar del PC **no se reenvió** al capturarlo. Lo descubrí porque una prueba mal diseñada mía se lo comió. |
+| **Reconexión tras reiniciar el PC** | Se mata DracPaste en el PC y se vuelve a abrir: el móvil vuelve a «Conectado con MARC» **solo**, sin tocarlo. |
 | **M4.2 · Caducidad del token** | La ventana avisa a los 2 minutos, y el servidor **rechaza el token caducado cerrando la conexión sin contestar**, como manda §3.2. |
-| Actualización 1.0 → 1.1 en el móvil | Se instala **encima, sin desinstalar**: la firma es la correcta y las actualizaciones futuras funcionarán. |
+| `excludeFromRecents` | Las tareas de DracPaste salen en `mHiddenTasks`: la ventana invisible no deja rastro en la lista de apps. |
+| Activities internas protegidas | `ActividadCaptura` y `ActividadPegar` son `exported="false"` de verdad: ni siquiera adb puede lanzarlas. Nadie de fuera puede disparar una lectura del portapapeles. |
+| Actualización 1.0 → 1.1 → 1.2 en el móvil | Se instala **encima, sin desinstalar**: la firma es la correcta y las actualizaciones futuras funcionarán. |
 | Instancia única en Windows | Al lanzar una segunda copia, se cierra sola sin molestar. |
 
-Las dos direcciones se probaron con el **cliente Kotlin** (`:protocolo:clienteDePrueba`),
-que hace exactamente lo que hace el móvil: mismo código de protocolo, mismo cifrado. Eso
+Parte de las pruebas se hicieron además con el **cliente Kotlin**
+(`:protocolo:clienteDePrueba`), que ejecuta el mismo código de protocolo que el móvil. Eso
 permitió repetirlas sin depender de que el cable estuviera puesto.
 
 ## El fallo que apareció, y no era pequeño
@@ -914,18 +919,18 @@ porque la primera no bastaba:
 
 ## Todavía sin probar
 
-Necesitan el móvil conectado un rato largo, o gestos que no se pueden automatizar:
+Necesitan tiempo, o gestos que no se pueden automatizar:
 
-- **M3.1 con el botón de la notificación** (aquí se probó el envío, pero no el gesto real
-  desde la notificación) y **M3.2** (compartir).
 - **M3.3 · que una contraseña no salga del móvil.** La regla tiene tests, pero falta ver
-  que el gestor concreto marca sus clips.
-- **M1.2 · descubrimiento por mDNS** sin escribir ninguna IP.
-- **M1.4, M5.1–M5.3 · reconexiones** tras cortar el WiFi, cambiar de red y suspender el PC.
-- **M5.4, M5.5 · reinicio del móvil** y proceso matado.
-- **M2.4, M5.8 · aguante en segundo plano** (30 minutos y una noche entera).
+  que el gestor concreto que use marca sus clips. No se puede simular: escribir un clip
+  con `EXTRA_IS_SENSITIVE` requiere ser otra app.
 - **M4.1 · emparejar escaneando el QR con la cámara.** Aquí se emparejó pegando el código;
-  el escáner sigue sin probarse con una cámara real.
+  el escáner sigue sin probarse con una cámara real apuntando a una pantalla.
+- **M1.4, M5.1–M5.3 · reconexiones** tras cortar el WiFi del móvil, cambiar de red y
+  suspender el PC. (La reconexión al reiniciar el PC sí está probada.)
+- **M5.4, M5.5 · reiniciar el móvil** y matar el proceso.
+- **M2.4, M5.8 · aguante en segundo plano**: 30 minutos y una noche entera. Son las que
+  más dicen sobre si la app es usable de verdad, y las únicas que no se pueden acelerar.
 
 ---
 
