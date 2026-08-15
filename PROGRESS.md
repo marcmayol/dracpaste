@@ -877,6 +877,58 @@ falta un código nuevo.
 
 ---
 
+# Pruebas con hardware real — 15-ago-2026
+
+Hechas con un Pixel 8 Pro (Android 17) y la app de bandeja **real** en Windows, con el APK
+**de publicación** (minificado con R8 y firmado con la clave de producción).
+
+## Superadas
+
+| Prueba | Resultado |
+|---|---|
+| **M6.2 · El APK de publicación empareja** | **Sí.** Emparejamiento correcto contra la app real, con la misma huella en los dos lados. R8 no rompe el cifrado ni la serialización. |
+| **M3.1 · Móvil → PC** | El clip llega al portapapeles de Windows, con acentos y emoji **intactos**. |
+| **M2.1 · PC → móvil** | Se copia en el portapapeles del PC y el clip llega al otro extremo. |
+| **M4.2 · Caducidad del token** | La ventana avisa a los 2 minutos, y el servidor **rechaza el token caducado cerrando la conexión sin contestar**, como manda §3.2. |
+| Actualización 1.0 → 1.1 en el móvil | Se instala **encima, sin desinstalar**: la firma es la correcta y las actualizaciones futuras funcionarán. |
+| Instancia única en Windows | Al lanzar una segunda copia, se cierra sola sin molestar. |
+
+Las dos direcciones se probaron con el **cliente Kotlin** (`:protocolo:clienteDePrueba`),
+que hace exactamente lo que hace el móvil: mismo código de protocolo, mismo cifrado. Eso
+permitió repetirlas sin depender de que el cable estuviera puesto.
+
+## El fallo que apareció, y no era pequeño
+
+**El Firewall de Windows impedía emparejar en cualquier PC.** Se arregló en dos tandas,
+porque la primera no bastaba:
+
+- **v1.1** — no había ninguna regla. El ping funcionaba y la conexión TCP moría en un
+  timeout, así que el móvil decía «¿estáis en la misma red?» y mandaba al usuario a
+  revisar el WiFi, que estaba perfecto. Se añadieron reglas en el instalador, detección en
+  la app con un botón para crearlas, y un mensaje honesto en el móvil.
+- **v1.2** — las reglas de la 1.1 valían solo para redes «privada» y «dominio», que parecía
+  lo prudente. **No servía**: Windows clasifica como *pública* cualquier red en la que el
+  usuario dijo que no quería que el equipo fuese detectable, y eso incluye la mayoría de
+  redes domésticas —la de este PC, sin ir más lejos—. La regla existía, estaba habilitada y
+  no aplicaba, con un síntoma idéntico al de no tener ninguna.
+
+## Todavía sin probar
+
+Necesitan el móvil conectado un rato largo, o gestos que no se pueden automatizar:
+
+- **M3.1 con el botón de la notificación** (aquí se probó el envío, pero no el gesto real
+  desde la notificación) y **M3.2** (compartir).
+- **M3.3 · que una contraseña no salga del móvil.** La regla tiene tests, pero falta ver
+  que el gestor concreto marca sus clips.
+- **M1.2 · descubrimiento por mDNS** sin escribir ninguna IP.
+- **M1.4, M5.1–M5.3 · reconexiones** tras cortar el WiFi, cambiar de red y suspender el PC.
+- **M5.4, M5.5 · reinicio del móvil** y proceso matado.
+- **M2.4, M5.8 · aguante en segundo plano** (30 minutos y una noche entera).
+- **M4.1 · emparejar escaneando el QR con la cámara.** Aquí se emparejó pegando el código;
+  el escáner sigue sin probarse con una cámara real.
+
+---
+
 # Resumen final
 
 ## Estado global
