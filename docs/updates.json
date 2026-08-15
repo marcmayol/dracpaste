@@ -1,8 +1,8 @@
 {
-  "versionCode": 2,
-  "versionName": "1.1",
-  "url": "https://github.com/marcmayol/dracpaste/releases/download/v1.1/dracpaste-v1.1.apk",
-  "sha256": "f90813a98753f2f65d2c9c3079fa9b01bfe1c4dba20a322dfaf3781697dff446",
-  "notas": "Arregla el emparejamiento en un PC nuevo: sin una regla de firewall, el movil veia el PC pero la conexion moria en un timeout y el mensaje culpaba a la red. Ahora el instalador crea la regla, la app avisa si falta y ofrece crearla, y el mensaje del movil dice donde esta el problema de verdad.",
+  "versionCode": 3,
+  "versionName": "1.2",
+  "url": "https://github.com/marcmayol/dracpaste/releases/download/v1.2/dracpaste-v1.2.apk",
+  "sha256": "02a2075677f7599396111c3e8dcfb2dcf57ce790bbf42f3e0fddd6f97b941234",
+  "notas": "Arregla el firewall en redes domesticas. La 1.1 creaba la regla solo para redes privadas, pero Windows clasifica como publica la mayoria de redes de casa, asi que la regla existia y no aplicaba: el sintoma era el mismo que sin regla. Ahora vale para todos los perfiles, y el instalador reemplaza las reglas viejas en vez de acumularlas.",
   "check_horas": 24
 }
