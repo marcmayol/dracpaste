@@ -13,7 +13,7 @@
 #define MiApp "DracPaste"
 ; Debe coincidir con el versionName de android/app/build.gradle.kts: las dos mitades se
 ; publican juntas en la misma Release y tener versiones distintas solo confunde.
-#define MiVersion "1.2"
+#define MiVersion "1.3"
 #define MiAutor "marcmayol.com"
 #define MiEjecutable "DracPaste.exe"
 

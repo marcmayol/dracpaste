@@ -143,7 +143,17 @@ private fun Pantalla(actualizador: Actualizador) {
                     pcs = registro.todos()
                     aviso = "Emparejado con ${resultado.pc.nombre}.\n\n" +
                         "Comprueba que el PC muestra esta misma huella: ${resultado.pc.huella}"
-                    arrancarServicioSiSePuede(contexto, pedirNotificaciones::launch)
+
+                    // Con la acción de releer, no a secas: si el servicio ya estaba en
+                    // marcha —lo normal, porque se arranca al abrir la app—, un
+                    // startService sin acción no le dice nada y se queda como estaba.
+                    // El resultado era emparejar y que no pasara nada: la notificación
+                    // seguía diciendo «Sin emparejar» y nunca llegaba a conectar.
+                    arrancarServicioSiSePuede(
+                        contexto,
+                        pedirNotificaciones::launch,
+                        ServicioDracPaste.ACCION_RELEER_EMPAREJAMIENTO,
+                    )
                 }
 
                 is EmparejarConPc.Resultado.Fallo -> aviso = resultado.motivo
@@ -379,7 +389,11 @@ private fun SeccionPcs(
  * En Android 13+ el permiso es obligatorio para mostrar la notificación persistente, y sin
  * notificación persistente no puede haber foreground service.
  */
-private fun arrancarServicioSiSePuede(contexto: Context, pedirPermiso: (String) -> Unit) {
+private fun arrancarServicioSiSePuede(
+    contexto: Context,
+    pedirPermiso: (String) -> Unit,
+    accion: String? = null,
+) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(contexto, Manifest.permission.POST_NOTIFICATIONS) !=
         PackageManager.PERMISSION_GRANTED
@@ -388,7 +402,7 @@ private fun arrancarServicioSiSePuede(contexto: Context, pedirPermiso: (String) 
         return
     }
 
-    ServicioDracPaste.arrancar(contexto)
+    ServicioDracPaste.arrancar(contexto, accion)
 }
 
 private fun pedirCamaraOEscanear(

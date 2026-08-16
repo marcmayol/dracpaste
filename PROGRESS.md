@@ -917,6 +917,38 @@ porque la primera no bastaba:
   redes domésticas —la de este PC, sin ir más lejos—. La regla existía, estaba habilitada y
   no aplicaba, con un síntoma idéntico al de no tener ninguna.
 
+## Emparejar con el QR, y el bug que destapó — 16-ago-2026
+
+El usuario emparejó **escaneando el QR con la cámara** (M4.1) y desvinculó y volvió a
+vincular varias veces. El QR funciona.
+
+Pero apareció un fallo que solo se ve haciéndolo así:
+
+**Al emparejar con la app ya abierta, no pasaba nada.** El PC registraba el móvil, pero la
+notificación seguía diciendo «Sin emparejar» y no se establecía ninguna conexión. Había que
+cerrar y reabrir la app para que arrancara.
+
+La causa: tras emparejar, la pantalla llamaba a `ServicioDracPaste.arrancar(contexto)` **sin
+acción**. Si el servicio ya estaba en marcha —lo normal, porque se arranca al abrir la
+app—, `onStartCommand` no tenía nada que hacer y se quedaba como estaba, sin releer el
+emparejamiento nuevo. Ahora se arranca con `ACCION_RELEER_EMPAREJAMIENTO`.
+
+**Por qué no lo cogieron las pruebas automáticas**: todas hacían `am force-stop` antes de
+emparejar, así que el servicio siempre arrancaba de cero y leía el emparejamiento en
+`onCreate`. El camino que sigue una persona de verdad —abrir la app y emparejar— era justo
+el que no se probaba.
+
+De la misma sesión salió una mejora de la notificación: decía «Lo que copies en el PC
+llegará aquí», lo que hace pensar que la otra dirección también es automática. El usuario
+copió algo en el móvil y se quedó esperando. Ahora dice «Lo del PC llega solo · para enviar
+lo tuyo, despliega y toca Enviar», con `BigTextStyle` para que no se corte.
+
+También quedó comprobado, con gestos reales:
+
+- **Móvil → PC con el botón de la notificación**: dos textos enviados y recibidos.
+- **Desvincular**: el PC y el móvil se enteran los dos.
+- **Reconexión automática**: «Reconectando» → «Conectado» sola, varias veces.
+
 ## Todavía sin probar
 
 Necesitan tiempo, o gestos que no se pueden automatizar:

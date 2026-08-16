@@ -290,7 +290,11 @@ class ServicioDracPaste : LifecycleService() {
             ?: when {
                 preferencias.pausado -> "Nada sale ni entra hasta que la reanudes"
                 ultimoEstado == EstadoConexion.SIN_EMPAREJAR -> "Toca para emparejar un PC"
-                ultimoEstado == EstadoConexion.CONECTADO -> "Lo que copies en el PC llegará aquí"
+                // Se nombra el gesto: decir solo que lo del PC llega aquí hace pensar que
+                // la otra dirección también es automática, y entonces uno copia en el
+                // móvil, no pasa nada y parece que la app está rota.
+                ultimoEstado == EstadoConexion.CONECTADO ->
+                    "Lo del PC llega solo · para enviar lo tuyo, despliega y toca Enviar"
                 else -> "Sin conexión con el PC"
             }
 
@@ -301,10 +305,15 @@ class ServicioDracPaste : LifecycleService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
 
+        val textoFinal = if (clipPendienteDePegar != null) resumir(clipPendienteDePegar!!) else texto
+
         val constructor = NotificationCompat.Builder(this, CANAL)
             .setSmallIcon(R.drawable.ic_notificacion)
             .setContentTitle(if (clipPendienteDePegar != null) "Clip recibido, toca para pegarlo" else titulo)
-            .setContentText(if (clipPendienteDePegar != null) resumir(clipPendienteDePegar!!) else texto)
+            .setContentText(textoFinal)
+            // Colapsada, la notificación corta el texto por donde le cabe; con BigText se
+            // lee entero al desplegarla, que es justo cuando aparece el botón de enviar.
+            .setStyle(NotificationCompat.BigTextStyle().bigText(textoFinal))
             .setContentIntent(abrir)
             .setOngoing(true)
             .setSilent(true)
