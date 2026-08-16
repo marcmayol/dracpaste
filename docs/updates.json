@@ -1,8 +1,8 @@
 {
-  "versionCode": 3,
-  "versionName": "1.2",
-  "url": "https://github.com/marcmayol/dracpaste/releases/download/v1.2/dracpaste-v1.2.apk",
-  "sha256": "02a2075677f7599396111c3e8dcfb2dcf57ce790bbf42f3e0fddd6f97b941234",
-  "notas": "Arregla el firewall en redes domesticas. La 1.1 creaba la regla solo para redes privadas, pero Windows clasifica como publica la mayoria de redes de casa, asi que la regla existia y no aplicaba: el sintoma era el mismo que sin regla. Ahora vale para todos los perfiles, y el instalador reemplaza las reglas viejas en vez de acumularlas.",
+  "versionCode": 4,
+  "versionName": "1.3",
+  "url": "https://github.com/marcmayol/dracpaste/releases/download/v1.3/dracpaste-v1.3.apk",
+  "sha256": "8176fbcff2d095f787aeaf5c48b354c53b8818735ad7cd7e93374f3bfd72286c",
+  "notas": "DracPaste 1.3.",
   "check_horas": 24
 }
