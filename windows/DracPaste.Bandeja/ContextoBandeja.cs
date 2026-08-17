@@ -34,10 +34,16 @@ internal sealed class ContextoBandeja : ApplicationContext
 
         _estadoMenu = new ToolStripMenuItem("Arrancando…") { Enabled = false };
 
+        // Con el aviso puesto: en el menú es el primer elemento que se puede pulsar, y en
+        // rojo sobre su fondo. Un globo aparece una vez y se lo come cualquiera; un menú
+        // se vuelve a abrir, y ahí sigue.
         _avisoCortafuegos = new ToolStripMenuItem(
-            "Permitir en el firewall de Windows…", null, (_, _) => ArreglarCortafuegos())
+            "⚠  Permitir en el firewall de Windows…", null, (_, _) => ArreglarCortafuegos())
         {
             Visible = false,
+            BackColor = Paleta.PeligroSuave,
+            ForeColor = Paleta.Peligro,
+            Font = Tipos.Fuerte(),
         };
 
         var menu = new ContextMenuStrip();

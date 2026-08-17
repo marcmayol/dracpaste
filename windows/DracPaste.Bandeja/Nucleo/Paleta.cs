@@ -36,4 +36,27 @@ internal static class Paleta
 
     /// <summary>Separadores y bordes pasivos.</summary>
     public static readonly Color Linea = Color.FromArgb(0xDD, 0xD6, 0xCD);
+
+    /// <summary>Fondo de la caja del texto de emparejar.</summary>
+    public static readonly Color Caja = Color.FromArgb(0xF7, 0xF7, 0xF7);
+}
+
+/// <summary>
+/// Las fuentes del PC: Segoe UI para todo, y **Consolas para cualquier huella**.
+///
+/// Lo de la huella es una regla dura, no una preferencia: dos huellas se comparan
+/// carácter a carácter mirando dos pantallas a la vez, y con una tipografía de anchura
+/// variable la O y el 0, o el 1 y la l, se parecen lo justo para que alguien dé por buena
+/// una que no lo es.
+/// </summary>
+internal static class Tipos
+{
+    public static Font Normal(float tamano = 9f) => new("Segoe UI", tamano);
+
+    public static Font Fuerte(float tamano = 9f) => new("Segoe UI", tamano, FontStyle.Bold);
+
+    public static Font Huella(float tamano = 12f) => new("Consolas", tamano, FontStyle.Bold);
+
+    /// <summary>Para el JSON del plan B, que no se lee: se copia.</summary>
+    public static Font Codigo(float tamano = 8f) => new("Consolas", tamano);
 }

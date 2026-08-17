@@ -23,22 +23,35 @@ internal sealed class VentanaAjustes : Form
         _registro = registro;
         _servidor = servidor;
 
-        Text = "DracPaste · ajustes";
+        Text = "Ajustes — DracPaste";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
         ClientSize = new Size(560, 420);
+        BackColor = Paleta.Papel;
+        ForeColor = Paleta.Tinta;
+        Font = Tipos.Normal();
+        Icon = IconosDeBandeja.Base;
+
+        // El nombre del PC en negrita y lo demás en gris: lo primero identifica el equipo
+        // que estás mirando, y lo segundo son las condiciones, que se leen una vez.
+        var nombre = new Label
+        {
+            Text = $"Este PC: {identidad.Nombre}",
+            Dock = DockStyle.Top,
+            Height = 26,
+            Padding = new Padding(16, 12, 16, 0),
+            Font = Tipos.Fuerte(10f),
+        };
 
         var cabecera = new Label
         {
-            Text = $"""
-                    Este PC: {identidad.Nombre}
-                    Escuchando en el puerto {servidor.Puerto} · solo red local · cifrado de extremo a extremo
-                    """,
+            Text = $"Escuchando en el puerto {servidor.Puerto} · solo red local · cifrado de extremo a extremo",
             Dock = DockStyle.Top,
-            Height = 56,
-            Padding = new Padding(16, 12, 16, 0),
+            Height = 30,
+            Padding = new Padding(16, 0, 16, 0),
+            ForeColor = Paleta.Apagado,
         };
 
         _lista = new ListView
@@ -48,6 +61,11 @@ internal sealed class VentanaAjustes : Form
             FullRowSelect = true,
             MultiSelect = false,
             HideSelection = false,
+            BackColor = Paleta.Tarjeta,
+            ForeColor = Paleta.Tinta,
+            // Consolas en toda la lista por la columna de la huella: es la que se compara
+            // carácter a carácter contra la pantalla del móvil.
+            Font = Tipos.Codigo(9f),
         };
         // Los anchos suman 508, que es lo que queda de los 560 de la ventana tras los
         // márgenes y el borde: con más, aparecía una barra de desplazamiento horizontal
@@ -129,6 +147,7 @@ internal sealed class VentanaAjustes : Form
         Controls.Add(opciones);
         Controls.Add(botones);
         Controls.Add(cabecera);
+        Controls.Add(nombre);
 
         AcceptButton = cerrar;
         Refrescar();

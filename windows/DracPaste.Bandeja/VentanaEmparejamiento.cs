@@ -17,7 +17,7 @@ internal sealed class VentanaEmparejamiento : Form
 {
     private readonly System.Windows.Forms.Timer _cuentaAtras;
     private readonly Label _caducidad;
-    private readonly ProgressBar _barra;
+    private readonly Panel _barra;
     private readonly PictureBox _imagenQr;
     private readonly TextBox _textoAlternativo;
 
@@ -43,12 +43,17 @@ internal sealed class VentanaEmparejamiento : Form
     {
         _renovar = renovar;
 
-        Text = "DracPaste · emparejar un móvil";
+        // Primero lo que se hace, después la app: es como titula sus ventanas Windows, y
+        // es lo que se lee cuando la barra de tareas recorta el título.
+        Text = "Emparejar un móvil — DracPaste";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Paleta.Papel;
+        ForeColor = Paleta.Tinta;
+        Font = Tipos.Normal();
+        Icon = IconosDeBandeja.Base;
 
         // La ventana crece con lo que se le añade en vez de repartir 620 px fijos entre
         // más cosas: la primera versión de esto dejó la caja del texto alternativo sin
@@ -56,19 +61,28 @@ internal sealed class VentanaEmparejamiento : Form
         var cortafuegos = PanelDeCortafuegos();
         ClientSize = new Size(420, 626 + (cortafuegos.Visible ? cortafuegos.Height : 0));
 
+        // El botón del móvil se llama «Escanear el código del PC». Antes aquí ponía
+        // «Emparejar un PC», que es un botón que ya no existe: quien lo buscara en la
+        // pantalla del móvil no lo encontraría.
         var explicacion = new Label
         {
-            Text = $"""
-                    Abre DracPaste en el móvil, pulsa «Emparejar un PC»
-                    y apunta con la cámara a este código.
-
-                    Este PC: {qr.Name} · {qr.Ip}:{qr.Port}
-                    """,
+            Text = "Abre DracPaste en el móvil, pulsa «Escanear el código del PC»\n"
+                   + "y apunta con la cámara a este código.",
             Dock = DockStyle.Top,
-            // 88 y no 72: con cuatro líneas, la última quedaba cortada por la mitad.
-            Height = 88,
-            Padding = new Padding(16, 12, 16, 0),
+            Height = 44,
+            Padding = new Padding(18, 12, 18, 0),
             TextAlign = ContentAlignment.TopLeft,
+            Font = Tipos.Normal(9.5f),
+        };
+
+        var esteP = new Label
+        {
+            Text = $"Este PC: {qr.Name} · {qr.Ip}:{qr.Port}",
+            Dock = DockStyle.Top,
+            Height = 26,
+            Padding = new Padding(18, 0, 18, 0),
+            TextAlign = ContentAlignment.TopLeft,
+            ForeColor = Paleta.Apagado,
         };
 
         _imagenQr = new PictureBox
@@ -87,9 +101,9 @@ internal sealed class VentanaEmparejamiento : Form
             Text = hayHuella ? $"Huella: {huella}" : "Comprueba la huella al terminar",
             Dock = DockStyle.Top,
             Height = 32,
-            Font = hayHuella
-                ? new Font(FontFamily.GenericMonospace, 12f, FontStyle.Bold)
-                : new Font(FontFamily.GenericSansSerif, 9f, FontStyle.Bold),
+            // Consolas en los dos casos: aunque todavía no haya huella que enseñar, el
+            // sitio donde va a aparecer ya se ve como lo que es.
+            Font = hayHuella ? Tipos.Huella(13f) : Tipos.Huella(11f),
             TextAlign = ContentAlignment.MiddleCenter,
         };
 
@@ -97,7 +111,7 @@ internal sealed class VentanaEmparejamiento : Form
         {
             Text = hayHuella
                 ? "El móvil debe mostrar esta misma huella al terminar."
-                : "Al terminar aparecerá aquí y en el móvil: deben coincidir.",
+                : "El móvil enseñará una huella; este PC mostrará la misma.",
             Dock = DockStyle.Top,
             // 28 y no 24: a 420 px de ancho, este texto se iba a dos líneas y la segunda
             // se comía la cuenta atrás de debajo.
@@ -107,24 +121,50 @@ internal sealed class VentanaEmparejamiento : Form
         };
 
         _caducaEn = DateTime.UtcNow.AddMilliseconds(Protocolo.Protocolo.ValidezTokenMs);
+
         _caducidad = new Label
         {
-            Dock = DockStyle.Top,
-            Height = 24,
-            TextAlign = ContentAlignment.MiddleCenter,
-            ForeColor = Paleta.Apagado,
+            Dock = DockStyle.Left,
+            AutoSize = true,
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(0, 4, 0, 0),
         };
 
-        // Una barra que se vacía se ve sin leer; la cuenta atrás en texto, en gris y en
-        // mitad de la ventana, no la miraba nadie.
-        _barra = new ProgressBar
+        // A la derecha y en gris: es una promesa, no una alarma. Enterarse de que el
+        // código se renueva solo cambia lo que hace el usuario cuando ve poco tiempo.
+        var promesa = new Label
         {
-            Dock = DockStyle.Top,
-            Height = 6,
-            Style = ProgressBarStyle.Continuous,
-            Maximum = Protocolo.Protocolo.ValidezTokenMs,
-            Value = Protocolo.Protocolo.ValidezTokenMs,
+            Text = "se renueva solo al caducar",
+            Dock = DockStyle.Right,
+            AutoSize = true,
+            TextAlign = ContentAlignment.MiddleRight,
+            ForeColor = Paleta.Apagado,
+            Padding = new Padding(0, 4, 0, 0),
         };
+
+        var filaCaducidad = new Panel { Dock = DockStyle.Top, Height = 26, Padding = new Padding(18, 0, 18, 0) };
+        filaCaducidad.Controls.Add(promesa);
+        filaCaducidad.Controls.Add(_caducidad);
+
+        // Una barra que se vacía se ve sin leer; la cuenta atrás en texto, en gris y en
+        // mitad de la ventana, no la miraba nadie. El movimiento se coge con el rabillo
+        // del ojo; un número, no.
+        //
+        // Dos paneles y no una ProgressBar: la de serie se pinta del verde de Windows, y
+        // habría sido el único color de toda la ventana fuera de la paleta. Sigue siendo
+        // un control de serie, sin dibujar nada a mano.
+        _barra = new Panel { Dock = DockStyle.Left, BackColor = Paleta.Tinta };
+
+        var canal = new Panel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Paleta.Caja,
+            BorderStyle = BorderStyle.FixedSingle,
+        };
+        canal.Controls.Add(_barra);
+
+        var marcoBarra = new Panel { Dock = DockStyle.Top, Height = 22, Padding = new Padding(18, 4, 18, 4) };
+        marcoBarra.Controls.Add(canal);
 
         _textoAlternativo = new TextBox
         {
@@ -133,8 +173,11 @@ internal sealed class VentanaEmparejamiento : Form
             ReadOnly = true,
             ScrollBars = ScrollBars.Vertical,
             Dock = DockStyle.Fill,
-            Font = new Font(FontFamily.GenericMonospace, 8f),
-            BackColor = Paleta.Papel,
+            // Este texto no se lee, se copia: en gris y pequeño, para que no compita con
+            // el QR, que es por donde va a emparejar casi todo el mundo.
+            Font = Tipos.Codigo(),
+            BackColor = Paleta.Caja,
+            ForeColor = Paleta.Apagado,
             BorderStyle = BorderStyle.FixedSingle,
             // Sin esto, el texto aparece resaltado en azul al abrirse la ventana, como si
             // el usuario ya lo hubiera seleccionado.
@@ -176,11 +219,12 @@ internal sealed class VentanaEmparejamiento : Form
         // Con Dock.Top, el último que se añade es el que queda más arriba.
         Controls.Add(marcoTexto);
         Controls.Add(pieTexto);
-        Controls.Add(_barra);
-        Controls.Add(_caducidad);
+        Controls.Add(filaCaducidad);
+        Controls.Add(marcoBarra);
         Controls.Add(explicacionHuella);
         Controls.Add(huellaEtiqueta);
         Controls.Add(_imagenQr);
+        Controls.Add(esteP);
         Controls.Add(explicacion);
         Controls.Add(cortafuegos);
         Controls.Add(botones);
@@ -225,13 +269,23 @@ internal sealed class VentanaEmparejamiento : Form
             AutoSize = false,
         };
 
+        var aviso = new Label
+        {
+            Text = "⚠",
+            Dock = DockStyle.Left,
+            Width = 26,
+            ForeColor = Paleta.Peligro,
+            Font = Tipos.Fuerte(12f),
+            TextAlign = ContentAlignment.TopLeft,
+        };
+
         var texto = new Label
         {
-            Text = "El firewall va a bloquear al móvil: verá este PC, pero la conexión morirá "
+            Text = "El firewall va a bloquear al móvil. Verá este PC, pero la conexión morirá "
                    + "en un tiempo de espera.",
             Dock = DockStyle.Fill,
             ForeColor = Paleta.Peligro,
-            Font = new Font(FontFamily.GenericSansSerif, 8.5f, FontStyle.Bold),
+            Font = Tipos.Fuerte(8.5f),
         };
 
         boton.Click += (_, _) =>
@@ -251,6 +305,7 @@ internal sealed class VentanaEmparejamiento : Form
         };
 
         panel.Controls.Add(texto);
+        panel.Controls.Add(aviso);
         panel.Controls.Add(boton);
         return panel;
     }
@@ -265,12 +320,79 @@ internal sealed class VentanaEmparejamiento : Form
             return;
         }
 
-        _caducidad.Text = $"El código caduca en {quedan.Minutes}:{quedan.Seconds:D2} · se renueva solo";
-        _caducidad.ForeColor = Paleta.Apagado;
+        _caducidad.Text = $"El código caduca en {quedan.Minutes}:{quedan.Seconds:D2}";
+        _caducidad.ForeColor = Paleta.Tinta;
 
-        // El valor se recorta al máximo: entre el tick de un segundo y el reloj real hay
-        // milisegundos de diferencia, y pasarse hace que ProgressBar lance.
-        _barra.Value = Math.Clamp((int)quedan.TotalMilliseconds, 0, _barra.Maximum);
+        // El ancho se calcula sobre el del canal, que es quien conoce el tamaño real tras
+        // aplicar el escalado de DPI.
+        var canal = _barra.Parent;
+        if (canal is not null)
+        {
+            var fraccion = quedan.TotalMilliseconds / Protocolo.Protocolo.ValidezTokenMs;
+            _barra.Width = (int)Math.Clamp(canal.ClientSize.Width * fraccion, 0, canal.ClientSize.Width);
+        }
+    }
+
+    /// <summary>
+    /// Tapa el QR con un panel de tinta cuando el código ha caducado y **no** se ha
+    /// podido renovar (sin red, normalmente).
+    ///
+    /// El QR muerto no puede seguir a la vista con aspecto de válido: alguien lo escanea,
+    /// el móvil da un error que no explica nada, y a nadie se le ocurre que el problema
+    /// era que el dibujo llevaba dos minutos caducado.
+    /// </summary>
+    private void MostrarCaducado()
+    {
+        var panel = new Panel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Paleta.Tinta,
+            Padding = new Padding(24, 38, 24, 38),
+        };
+
+        var titulo = new Label
+        {
+            Text = "El código ha caducado",
+            Dock = DockStyle.Top,
+            Height = 34,
+            ForeColor = Color.White,
+            Font = Tipos.Fuerte(13f),
+            TextAlign = ContentAlignment.MiddleCenter,
+        };
+
+        var explicacion = new Label
+        {
+            Text = "No se pudo generar uno nuevo. Comprueba la red y vuelve a intentarlo.",
+            Dock = DockStyle.Top,
+            Height = 44,
+            ForeColor = Color.Gainsboro,
+            TextAlign = ContentAlignment.MiddleCenter,
+        };
+
+        var reintentar = new Button
+        {
+            Text = "Generar un código nuevo",
+            Dock = DockStyle.Top,
+            Height = 30,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Paleta.Tinta,
+            ForeColor = Color.White,
+            Font = Tipos.Fuerte(),
+        };
+        reintentar.FlatAppearance.BorderColor = Color.White;
+        reintentar.Click += (_, _) =>
+        {
+            _imagenQr.Controls.Clear();
+            _cuentaAtras.Start();
+            Renovar();
+        };
+
+        panel.Controls.Add(reintentar);
+        panel.Controls.Add(explicacion);
+        panel.Controls.Add(titulo);
+
+        // Dentro del PictureBox del QR: tapa justo lo que ha dejado de valer.
+        _imagenQr.Controls.Add(panel);
     }
 
     /// <summary>
@@ -283,9 +405,10 @@ internal sealed class VentanaEmparejamiento : Form
         if (nuevo is null)
         {
             _cuentaAtras.Stop();
-            _barra.Value = 0;
-            _caducidad.Text = "El código ha caducado. Cierra y vuelve a abrir esta ventana.";
+            _barra.Width = 0;
+            _caducidad.Text = "El código ha caducado";
             _caducidad.ForeColor = Paleta.Peligro;
+            MostrarCaducado();
             Caducado?.Invoke();
             return;
         }
@@ -297,7 +420,6 @@ internal sealed class VentanaEmparejamiento : Form
         _textoAlternativo.Text = serializado;
 
         _caducaEn = DateTime.UtcNow.AddMilliseconds(Protocolo.Protocolo.ValidezTokenMs);
-        _barra.Value = _barra.Maximum;
         ActualizarCaducidad();
     }
 
