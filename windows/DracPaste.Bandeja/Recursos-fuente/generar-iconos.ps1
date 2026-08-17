@@ -1,7 +1,10 @@
 # Genera los iconos de DracPaste a partir de la cabeza de Ladon.
 Add-Type -AssemblyName System.Drawing
 
-$origen = "C:\Users\marcm\DracPaste\design-handoff\assets\drac-head.png"
+# La cabeza sola para los tamanos pequenos; el logo entero donde hay sitio.
+$cabeza = "C:\Users\marcm\DracPaste\design-handoff\assets\drac-head.png"
+$logo = "C:\Users\marcm\DracPaste\design-handoff\assets\logo-dracpaste.png"
+$origen = $cabeza
 $res = "C:\Users\marcm\DracPaste\android\app\src\main\res"
 $recursos = "C:\Users\marcm\DracPaste\windows\DracPaste.Bandeja\Recursos"
 if (-not (Test-Path $recursos)) { New-Item -ItemType Directory $recursos | Out-Null }
@@ -41,16 +44,20 @@ function Dibujar([int]$lado, [double]$ocupacion, [System.Drawing.Color]$color) {
     return $mapa
 }
 
-# 1. Icono del lanzador. La zona segura del icono adaptativo es 66 de 108 dp: si el
-#    dibujo se sale de ahi, los lanzadores redondos le cortan los cuernos.
+# 1. Icono del lanzador: el logo entero, que es lo que identifica a la app.
+#    La zona segura del icono adaptativo es 66 de 108 dp: si el dibujo se sale de ahi,
+#    los lanzadores redondos le cortan las esquinas de la hoja.
 Remove-Item "$res\drawable\ic_launcher_foreground.xml" -ErrorAction SilentlyContinue
+$origen = $logo
 $frente = Dibujar 432 0.58 ([System.Drawing.Color]::Empty)
 $frente.Save("$res\drawable\ic_launcher_foreground.png", [System.Drawing.Imaging.ImageFormat]::Png)
 $frente.Dispose()
 Write-Host "  ic_launcher_foreground.png"
 
-# 2. Icono de notificacion: Android lo aplana y lo tine, solo cuenta el alfa.
+# 2. Icono de notificacion: la cabeza sola. Android lo aplana a silueta y lo tine, asi
+#    que del logo entero solo quedaria una mancha con la hoja de fondo.
 Remove-Item "$res\drawable\ic_notificacion.xml" -ErrorAction SilentlyContinue
+$origen = $cabeza
 $aviso = Dibujar 96 0.92 ([System.Drawing.Color]::White)
 $aviso.Save("$res\drawable\ic_notificacion.png", [System.Drawing.Imaging.ImageFormat]::Png)
 $aviso.Dispose()

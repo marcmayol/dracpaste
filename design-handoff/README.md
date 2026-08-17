@@ -11,7 +11,8 @@ Paquete de implementación del rediseño de **DracPaste** (portapapeles comparti
 - `DracPaste Pantallas.dc.html` — TODAS las pantallas y estados (fuente de verdad). Secciones: 3 modelo/decisiones, 4 principal Android, 5 emparejamiento Android, 6 ajustes+notificación, 7 Windows, 8 tokens.
 - `DracPaste Identidad.dc.html` — logo, lockups, usos.
 - `DracPaste Direcciones.dc.html` — exploración (contexto, no implementar).
-- `assets/drac-head.png` — cabeza de Ladón, fondo transparente. **Pendiente: vectorizarla** antes de generar el VectorDrawable de notificación y el .ico.
+- `assets/logo-dracpaste.png` — **el logo completo** (hoja doblada + Ladón + cursor), 880×1020. Úsalo en Acerca de, instalador y catálogo. A tamaños de bandeja/notificación NO: ahí va solo la cabeza.
+- `assets/drac-head.png` — cabeza de Ladón, fondo transparente: la versión para iconos pequeños. **Pendiente: vectorizarla** antes de generar el VectorDrawable de notificación y el .ico.
 - `encargos/` — los dos briefs originales del autor (contexto y textos literales).
 
 ## El principio de diseño que gobierna todo
