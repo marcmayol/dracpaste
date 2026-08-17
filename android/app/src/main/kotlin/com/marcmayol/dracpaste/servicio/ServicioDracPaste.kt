@@ -285,18 +285,29 @@ class ServicioDracPaste : LifecycleService() {
             else -> tituloDelEstado(nombrePc)
         }
 
+        // Colapsada solo se lee una línea, y ahí caben unos 40 caracteres. La versión
+        // anterior decía «Lo del PC llega solo · para enviar lo tuyo, despliega y toca
+        // Enviar» y se cortaba justo antes de la instrucción: quedaba «para enviar lo
+        // tuyo,…», que es la mitad inútil de la frase.
         val texto = mensajeExtra
             ?: ultimoDetalle
             ?: when {
                 preferencias.pausado -> "Nada sale ni entra hasta que la reanudes"
                 ultimoEstado == EstadoConexion.SIN_EMPAREJAR -> "Toca para emparejar un PC"
-                // Se nombra el gesto: decir solo que lo del PC llega aquí hace pensar que
-                // la otra dirección también es automática, y entonces uno copia en el
-                // móvil, no pasa nada y parece que la app está rota.
-                ultimoEstado == EstadoConexion.CONECTADO ->
-                    "Lo del PC llega solo · para enviar lo tuyo, despliega y toca Enviar"
+                ultimoEstado == EstadoConexion.CONECTADO -> "Para enviar al PC: desplegar ↓"
                 else -> "Sin conexión con el PC"
             }
+
+        // Al desplegar sí hay sitio para explicar la asimetría entera, y es además el
+        // momento en el que aparece el botón de enviar.
+        val textoDesplegado = when {
+            mensajeExtra != null || ultimoDetalle != null -> null
+            preferencias.pausado -> null
+            ultimoEstado == EstadoConexion.CONECTADO ->
+                "Lo que copies en el PC llega solo.\n" +
+                    "Lo del móvil no puede salir sin tu toque: Android lo exige."
+            else -> null
+        }
 
         val abrir = PendingIntent.getActivity(
             this,
@@ -311,9 +322,11 @@ class ServicioDracPaste : LifecycleService() {
             .setSmallIcon(R.drawable.ic_notificacion)
             .setContentTitle(if (clipPendienteDePegar != null) "Clip recibido, toca para pegarlo" else titulo)
             .setContentText(textoFinal)
-            // Colapsada, la notificación corta el texto por donde le cabe; con BigText se
-            // lee entero al desplegarla, que es justo cuando aparece el botón de enviar.
-            .setStyle(NotificationCompat.BigTextStyle().bigText(textoFinal))
+            .setStyle(
+                NotificationCompat.BigTextStyle().bigText(
+                    if (clipPendienteDePegar != null) textoFinal else textoDesplegado ?: textoFinal,
+                ),
+            )
             .setContentIntent(abrir)
             .setOngoing(true)
             .setSilent(true)

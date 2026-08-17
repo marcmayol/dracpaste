@@ -8,6 +8,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +18,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -58,6 +62,7 @@ import com.marcmayol.dracpaste.datos.DesemparejarPc
 import com.marcmayol.dracpaste.datos.EmparejarConPc
 import com.marcmayol.dracpaste.datos.PcEmparejado
 import com.marcmayol.dracpaste.datos.RegistroPcs
+import com.marcmayol.dracpaste.portapapeles.GestorPortapapeles
 import com.marcmayol.dracpaste.servicio.ServicioDracPaste
 import kotlinx.coroutines.launch
 
@@ -67,6 +72,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // De borde a borde, pero con los márgenes puestos abajo: sin esto el título
+        // quedaba pisando el reloj de la barra de estado.
+        enableEdgeToEdge()
 
         lifecycleScope.launch {
             actualizador.comprobar(Modo.AUTOMATICO)
@@ -96,6 +105,7 @@ private fun Pantalla(actualizador: Actualizador) {
     val estadoActualizacion by actualizador.estado.collectAsStateWithLifecycle()
 
     val registro = remember { RegistroPcs(contexto) }
+    val portapapeles = remember { GestorPortapapeles(contexto) }
     val almacen = remember { AlmacenIdentidad(contexto) }
     val emparejador = remember { EmparejarConPc(almacen, registro) }
     val desemparejador = remember { DesemparejarPc(almacen, registro) }
@@ -107,6 +117,7 @@ private fun Pantalla(actualizador: Actualizador) {
     var trabajando by remember { mutableStateOf(false) }
     var aviso by remember { mutableStateOf<String?>(null) }
     var aDesemparejar by remember { mutableStateOf<PcEmparejado?>(null) }
+    var recienEmparejado by remember { mutableStateOf<PcEmparejado?>(null) }
     var enAjustes by remember { mutableStateOf(false) }
 
     val pedirNotificaciones = rememberLauncherForActivityResult(
@@ -141,8 +152,11 @@ private fun Pantalla(actualizador: Actualizador) {
                     textoManual = ""
                     mostrandoTextoManual = false
                     pcs = registro.todos()
-                    aviso = "Emparejado con ${resultado.pc.nombre}.\n\n" +
-                        "Comprueba que el PC muestra esta misma huella: ${resultado.pc.huella}"
+
+                    // No es un aviso que se despacha con «Entendido»: la huella es lo
+                    // único que impide que alguien se haya colado en medio, y si no
+                    // coincide hay que poder deshacerlo desde aquí mismo.
+                    recienEmparejado = resultado.pc
 
                     // Con la acción de releer, no a secas: si el servicio ya estaba en
                     // marcha —lo normal, porque se arranca al abrir la app—, un
@@ -162,6 +176,32 @@ private fun Pantalla(actualizador: Actualizador) {
         }
     }
 
+    /**
+     * Lee el portapapeles y lo manda al PC activo.
+     *
+     * Se llama desde la pantalla y no desde el servicio a propósito: leer el portapapeles
+     * exige foco de pantalla (Android 10+), y aquí lo hay.
+     */
+    fun enviarLoCopiado() {
+        when (val leido = portapapeles.leer()) {
+            is GestorPortapapeles.ResultadoLectura.Texto ->
+                ServicioDracPaste.arrancar(
+                    contexto,
+                    ServicioDracPaste.ACCION_ENVIAR_TEXTO,
+                    leido.contenido,
+                )
+
+            GestorPortapapeles.ResultadoLectura.Vacio ->
+                aviso = "No hay nada copiado que enviar. Copia algo primero y vuelve."
+
+            // No se envía ni se pregunta: es la regla de la casa, y decirlo aquí explica
+            // por qué la app no hace lo que el usuario acaba de pedirle.
+            GestorPortapapeles.ResultadoLectura.Sensible ->
+                aviso = "Eso lo ha copiado un gestor de contraseñas y DracPaste no lo " +
+                    "sincroniza nunca, ni siquiera cifrado."
+        }
+    }
+
     LaunchedEffect(Unit) {
         if (pcs.isNotEmpty()) {
             arrancarServicioSiSePuede(contexto, pedirNotificaciones::launch)
@@ -169,7 +209,12 @@ private fun Pantalla(actualizador: Actualizador) {
     }
 
     if (enAjustes) {
-        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(WindowInsets.safeDrawing)
+                .verticalScroll(rememberScrollState()),
+        ) {
             PantallaAjustes(alVolver = { enAjustes = false })
         }
         return
@@ -178,6 +223,9 @@ private fun Pantalla(actualizador: Actualizador) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            // El padding de los insets va antes del scroll y antes del margen propio: si
+            // se pone después, el contenido se desplaza pero el fondo no llega al borde.
+            .windowInsetsPadding(WindowInsets.safeDrawing)
             .verticalScroll(rememberScrollState())
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -199,6 +247,34 @@ private fun Pantalla(actualizador: Actualizador) {
                 alCancelar = { escaneando = false },
             )
         } else {
+            // La pieza que resuelve la asimetría: aquí la app está en primer plano, así
+            // que **sí** puede leer el portapapeles. El botón de la notificación tenía que
+            // abrir una activity invisible para conseguir el foco; desde esta pantalla no
+            // hace falta nada de eso.
+            pcs.firstOrNull { it.activo }?.let { activo ->
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text("Enviar lo copiado al PC", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "Lo que copies en el PC llega solo. Al revés no: Android no deja " +
+                                "leer el portapapeles a una app que no estás mirando, así que " +
+                                "lo tuyo sale con un toque.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Button(
+                            onClick = { enviarLoCopiado() },
+                            enabled = !trabajando,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("Enviar a ${activo.nombre}")
+                        }
+                    }
+                }
+            }
+
             SeccionPcs(
                 pcs = pcs,
                 alActivar = { pc ->
@@ -284,6 +360,46 @@ private fun Pantalla(actualizador: Actualizador) {
             "DracPaste no envía nada fuera de tu red local, no guarda historial y nunca " +
                 "sincroniza lo que copies desde un gestor de contraseñas.",
             style = MaterialTheme.typography.bodySmall,
+        )
+    }
+
+    recienEmparejado?.let { pc ->
+        AlertDialog(
+            // Sin descarte al tocar fuera: hay que decir si coinciden o no.
+            onDismissRequest = { },
+            title = { Text("Emparejado con ${pc.nombre}") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Último paso: mira la pantalla del PC. Las dos huellas tienen que ser exactamente esta:")
+                    SelectionContainer {
+                        Text(
+                            pc.huella,
+                            style = MaterialTheme.typography.headlineMedium,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { recienEmparejado = null }) { Text("Coinciden") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    val objetivo = pc
+                    recienEmparejado = null
+                    ambito.launch {
+                        desemparejador.desemparejar(objetivo)
+                        pcs = registro.todos()
+                        ServicioDracPaste.arrancar(contexto, ServicioDracPaste.ACCION_RELEER_EMPAREJAMIENTO)
+                        aviso = "Se ha deshecho el emparejamiento con ${objetivo.nombre}. " +
+                            "Si las huellas no coincidían, alguien pudo meterse en medio: " +
+                            "vuelve a intentarlo con un código nuevo."
+                    }
+                }) {
+                    Text("No coinciden")
+                }
+            },
         )
     }
 

@@ -41,7 +41,7 @@ public class CapturaDeVentanasTests
             DeviceId = Hex.ToHex(Cripto.Aleatorio(16)),
         };
 
-        var (ancho, alto, controles) = EnHiloSta(() =>
+        var medidas = EnHiloSta(() =>
         {
             // Sin huella: es como se abre de verdad, porque depende de la clave pública
             // del móvil y esa llega al emparejar.
@@ -52,9 +52,24 @@ public class CapturaDeVentanasTests
             return Capturar(conHuella, "emparejamiento-con-huella.png");
         });
 
-        Assert.Equal(420, ancho);
-        Assert.Equal(620, alto);
-        Assert.True(controles > 5, "La ventana debería tener el QR, la huella, el texto y los botones");
+        Assert.Equal(420, medidas.Ancho);
+
+        // Dos alturas posibles: la ventana crece cuando hace falta enseñar el aviso del
+        // firewall. Cuál de las dos toca depende de si este equipo tiene la regla, así que
+        // el test no puede fijar una: lo que sí puede es exigir que sea una de ellas.
+        Assert.True(
+            medidas.Alto is 626 or 700,
+            $"Alto inesperado: {medidas.Alto}. Con el aviso del firewall son 700; sin él, 626.");
+
+        Assert.True(medidas.Controles > 5, "La ventana debería tener el QR, la huella, el texto y los botones");
+
+        // La comprobación que de verdad importa. Al añadir el aviso del firewall y la
+        // barra de caducidad, la ventana siguió midiendo lo mismo y el reparto dejó a la
+        // caja del texto alternativo sin un solo píxel: los botones acabaron montados
+        // sobre su propia etiqueta. Compilaba y el test de tamaño pasaba.
+        Assert.True(
+            medidas.AltoDelRelleno >= 40,
+            $"Al área de relleno le quedan {medidas.AltoDelRelleno} px: el contenido no cabe.");
     }
 
     [Fact]
@@ -84,7 +99,7 @@ public class CapturaDeVentanasTests
                 EmparejadoEn = DateTimeOffset.Now.AddDays(-3),
             });
 
-            var (ancho, alto, _) = EnHiloSta(() =>
+            var medidas = EnHiloSta(() =>
             {
                 var servidor = new ServidorDracPaste(identidad, registro, new GestorTokens());
                 servidor.Arrancar(puertoPreferido: 0);
@@ -106,8 +121,9 @@ public class CapturaDeVentanasTests
                 }
             });
 
-            Assert.Equal(560, ancho);
-            Assert.Equal(420, alto);
+            Assert.Equal(560, medidas.Ancho);
+            Assert.Equal(420, medidas.Alto);
+            Assert.True(medidas.AltoDelRelleno >= 40, "A la lista de móviles no le queda sitio.");
         }
         finally
         {
@@ -119,7 +135,7 @@ public class CapturaDeVentanasTests
     /// Dibuja la ventana a un PNG. Se crea el handle sin mostrarla, para que ejecutar los
     /// tests no llene la pantalla de ventanas.
     /// </summary>
-    private static (int Ancho, int Alto, int Controles) Capturar(Form ventana, string nombre)
+    private static Medidas Capturar(Form ventana, string nombre)
     {
         // La ventana se coloca fuera de la pantalla y se muestra un instante: sin
         // mostrarla, los controles con Dock no se colocan y saldría un rectángulo vacío.
@@ -133,13 +149,27 @@ public class CapturaDeVentanasTests
         ventana.DrawToBitmap(imagen, new Rectangle(0, 0, ventana.Width, ventana.Height));
         imagen.Save(Path.Combine(CarpetaDeCapturas, nombre), System.Drawing.Imaging.ImageFormat.Png);
 
-        var resultado = (ventana.ClientSize.Width, ventana.ClientSize.Height, ContarControles(ventana));
+        var resultado = new Medidas(
+            ventana.ClientSize.Width,
+            ventana.ClientSize.Height,
+            ContarControles(ventana),
+            AltoDelRelleno(ventana));
+
         ventana.Hide();
         return resultado;
     }
 
     private static int ContarControles(Control raiz) =>
         raiz.Controls.Cast<Control>().Sum(hijo => 1 + ContarControles(hijo));
+
+    /// <summary>
+    /// Lo que le queda al control que rellena el hueco, que es el primero en quedarse sin
+    /// sitio cuando se añaden bloques acoplados arriba y abajo.
+    /// </summary>
+    private static int AltoDelRelleno(Control raiz) =>
+        raiz.Controls.Cast<Control>().FirstOrDefault(c => c.Dock == DockStyle.Fill)?.Height ?? -1;
+
+    private sealed record Medidas(int Ancho, int Alto, int Controles, int AltoDelRelleno);
 
     private static T EnHiloSta<T>(Func<T> prueba)
     {

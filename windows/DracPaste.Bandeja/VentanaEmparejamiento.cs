@@ -1,3 +1,4 @@
+using DracPaste.Bandeja.Nucleo;
 using DracPaste.Protocolo.Sesion;
 using QRCoder;
 
@@ -16,6 +17,16 @@ internal sealed class VentanaEmparejamiento : Form
 {
     private readonly System.Windows.Forms.Timer _cuentaAtras;
     private readonly Label _caducidad;
+    private readonly ProgressBar _barra;
+    private readonly PictureBox _imagenQr;
+    private readonly TextBox _textoAlternativo;
+
+    /// <summary>
+    /// Cómo pedir un código nuevo cuando el actual caduca. Sin esto la ventana solo sabe
+    /// avisar de que ha caducado, que es lo que hacía antes.
+    /// </summary>
+    private readonly Func<DatosQr>? _renovar;
+
     private DateTime _caducaEn;
 
     /// <param name="huella">
@@ -23,15 +34,27 @@ internal sealed class VentanaEmparejamiento : Form
     /// clave pública del móvil, que llega al emparejar. En ese caso se explica que
     /// aparecerá después, en vez de enseñar un hueco.
     /// </param>
-    public VentanaEmparejamiento(DatosQr qr, string? huella = null)
+    /// <param name="renovar">
+    /// Emite un código nuevo. Se llama sola al caducar el anterior: dos minutos dan para
+    /// poco —coger el móvil, abrir la app, dar permiso a la cámara y apuntar—, y mandar a
+    /// cerrar y reabrir la ventana era hacerle perder el tiempo a quien ya iba tarde.
+    /// </param>
+    public VentanaEmparejamiento(DatosQr qr, string? huella = null, Func<DatosQr>? renovar = null)
     {
+        _renovar = renovar;
+
         Text = "DracPaste · emparejar un móvil";
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        ClientSize = new Size(420, 620);
         BackColor = Color.White;
+
+        // La ventana crece con lo que se le añade en vez de repartir 620 px fijos entre
+        // más cosas: la primera versión de esto dejó la caja del texto alternativo sin
+        // sitio y los botones montados sobre su propia etiqueta.
+        var cortafuegos = PanelDeCortafuegos();
+        ClientSize = new Size(420, 626 + (cortafuegos.Visible ? cortafuegos.Height : 0));
 
         var explicacion = new Label
         {
@@ -48,7 +71,7 @@ internal sealed class VentanaEmparejamiento : Form
             TextAlign = ContentAlignment.TopLeft,
         };
 
-        var imagenQr = new PictureBox
+        _imagenQr = new PictureBox
         {
             Image = GenerarQr(qr.ASerializar()),
             SizeMode = PictureBoxSizeMode.Zoom,
@@ -92,7 +115,18 @@ internal sealed class VentanaEmparejamiento : Form
             ForeColor = Color.DimGray,
         };
 
-        var textoAlternativo = new TextBox
+        // Una barra que se vacía se ve sin leer; la cuenta atrás en texto, en gris y en
+        // mitad de la ventana, no la miraba nadie.
+        _barra = new ProgressBar
+        {
+            Dock = DockStyle.Top,
+            Height = 6,
+            Style = ProgressBarStyle.Continuous,
+            Maximum = Protocolo.Protocolo.ValidezTokenMs,
+            Value = Protocolo.Protocolo.ValidezTokenMs,
+        };
+
+        _textoAlternativo = new TextBox
         {
             Text = qr.ASerializar(),
             Multiline = true,
@@ -120,7 +154,7 @@ internal sealed class VentanaEmparejamiento : Form
         var copiar = new Button { Text = "Copiar el texto", AutoSize = true };
         copiar.Click += (_, _) =>
         {
-            Clipboard.SetText(textoAlternativo.Text);
+            Clipboard.SetText(_textoAlternativo.Text);
             copiar.Text = "Copiado";
         };
 
@@ -128,7 +162,7 @@ internal sealed class VentanaEmparejamiento : Form
         botones.Controls.Add(copiar);
 
         var marcoTexto = new Panel { Dock = DockStyle.Fill, Padding = new Padding(16, 4, 16, 8) };
-        marcoTexto.Controls.Add(textoAlternativo);
+        marcoTexto.Controls.Add(_textoAlternativo);
 
         var pieTexto = new Label
         {
@@ -139,13 +173,16 @@ internal sealed class VentanaEmparejamiento : Form
             ForeColor = Color.DimGray,
         };
 
+        // Con Dock.Top, el último que se añade es el que queda más arriba.
         Controls.Add(marcoTexto);
         Controls.Add(pieTexto);
+        Controls.Add(_barra);
         Controls.Add(_caducidad);
         Controls.Add(explicacionHuella);
         Controls.Add(huellaEtiqueta);
-        Controls.Add(imagenQr);
+        Controls.Add(_imagenQr);
         Controls.Add(explicacion);
+        Controls.Add(cortafuegos);
         Controls.Add(botones);
 
         AcceptButton = cerrar;
@@ -157,8 +194,66 @@ internal sealed class VentanaEmparejamiento : Form
         ActualizarCaducidad();
     }
 
-    /// <summary>Se dispara cuando el token caduca y la ventana deja de valer.</summary>
+    /// <summary>Se dispara cuando el token caduca y no se ha podido renovar.</summary>
     public event Action? Caducado;
+
+    /// <summary>
+    /// El aviso de que el firewall va a bloquear al móvil, dentro de la ventana.
+    ///
+    /// Antes esto solo era un globo de la bandeja, y un globo se lo come cualquiera. Sin
+    /// la regla, el móvil ve el PC pero la conexión muere en un tiempo de espera, y desde
+    /// el móvil eso parece un problema de red: quien empareja se pone a mirar el WiFi.
+    /// Aquí está justo donde se va a intentar el emparejamiento.
+    /// </summary>
+    private Panel PanelDeCortafuegos()
+    {
+        var panel = new Panel
+        {
+            Dock = DockStyle.Top,
+            Height = 74,
+            BackColor = Color.FromArgb(250, 241, 236),
+            Padding = new Padding(16, 8, 16, 8),
+            // null = no se ha podido averiguar; callar es mejor que una alarma falsa.
+            Visible = Cortafuegos.HayReglaDeEntrada() == false,
+        };
+
+        var boton = new Button
+        {
+            Text = "Permitir en el firewall de Windows…",
+            Dock = DockStyle.Bottom,
+            Height = 26,
+            AutoSize = false,
+        };
+
+        var texto = new Label
+        {
+            Text = "El firewall va a bloquear al móvil: verá este PC, pero la conexión morirá "
+                   + "en un tiempo de espera.",
+            Dock = DockStyle.Fill,
+            ForeColor = Color.FromArgb(140, 47, 16),
+            Font = new Font(FontFamily.GenericSansSerif, 8.5f, FontStyle.Bold),
+        };
+
+        boton.Click += (_, _) =>
+        {
+            if (Cortafuegos.CrearReglas())
+            {
+                panel.Visible = false;
+                return;
+            }
+
+            MessageBox.Show(
+                "No se han podido crear las reglas. Hace falta aceptar el aviso de "
+                + "administrador de Windows.",
+                "DracPaste",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Warning);
+        };
+
+        panel.Controls.Add(texto);
+        panel.Controls.Add(boton);
+        return panel;
+    }
 
     private void ActualizarCaducidad()
     {
@@ -166,14 +261,44 @@ internal sealed class VentanaEmparejamiento : Form
 
         if (quedan <= TimeSpan.Zero)
         {
+            Renovar();
+            return;
+        }
+
+        _caducidad.Text = $"El código caduca en {quedan.Minutes}:{quedan.Seconds:D2} · se renueva solo";
+        _caducidad.ForeColor = Color.DimGray;
+
+        // El valor se recorta al máximo: entre el tick de un segundo y el reloj real hay
+        // milisegundos de diferencia, y pasarse hace que ProgressBar lance.
+        _barra.Value = Math.Clamp((int)quedan.TotalMilliseconds, 0, _barra.Maximum);
+    }
+
+    /// <summary>
+    /// Pide un código nuevo y reinicia la cuenta atrás sin cerrar la ventana.
+    /// </summary>
+    private void Renovar()
+    {
+        var nuevo = _renovar?.Invoke();
+
+        if (nuevo is null)
+        {
             _cuentaAtras.Stop();
+            _barra.Value = 0;
             _caducidad.Text = "El código ha caducado. Cierra y vuelve a abrir esta ventana.";
             _caducidad.ForeColor = Color.Firebrick;
             Caducado?.Invoke();
             return;
         }
 
-        _caducidad.Text = $"Caduca en {quedan.Minutes}:{quedan.Seconds:D2}";
+        var serializado = nuevo.ASerializar();
+        var anterior = _imagenQr.Image;
+        _imagenQr.Image = GenerarQr(serializado);
+        anterior?.Dispose();
+        _textoAlternativo.Text = serializado;
+
+        _caducaEn = DateTime.UtcNow.AddMilliseconds(Protocolo.Protocolo.ValidezTokenMs);
+        _barra.Value = _barra.Maximum;
+        ActualizarCaducidad();
     }
 
     /// <summary>

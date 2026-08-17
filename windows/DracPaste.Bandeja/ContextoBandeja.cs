@@ -142,7 +142,7 @@ internal sealed class ContextoBandeja : ApplicationContext
             MessageBoxIcon.Warning);
     }
 
-    /// <summary>Actualiza el estado que se ve en el menú y en el tooltip del icono.</summary>
+    /// <summary>Actualiza el estado que se ve en el menú, el tooltip y el icono.</summary>
     public void MostrarEstado(string estado)
     {
         _estadoMenu.Text = estado;
@@ -150,6 +150,29 @@ internal sealed class ContextoBandeja : ApplicationContext
         // se pierda silenciosamente el final del mensaje.
         var texto = $"DracPaste · {estado}";
         _icono.Text = texto.Length <= 63 ? texto : texto[..60] + "…";
+        _icono.Icon = IconosDeBandeja.Para(EstadoDelIcono());
+    }
+
+    /// <summary>
+    /// El icono no se deduce del texto del estado, sino del servidor.
+    ///
+    /// Los mensajes son frases que cambian —«Sin móvil conectado · el último clip no se
+    /// envió» es uno de ellos—, y colgar de una cadena la elección del icono habría
+    /// convertido cualquier retoque de redacción en un fallo visual.
+    /// </summary>
+    private EstadoBandeja EstadoDelIcono()
+    {
+        if (_servidor.EnPausa)
+        {
+            return EstadoBandeja.Pausa;
+        }
+
+        if (_registro.Todos.Count == 0)
+        {
+            return EstadoBandeja.SinEmparejar;
+        }
+
+        return _servidor.HayMovilConectado ? EstadoBandeja.Conectado : EstadoBandeja.SinMovil;
     }
 
     /// <summary>
@@ -199,11 +222,7 @@ internal sealed class ContextoBandeja : ApplicationContext
         return unaLinea.Length <= 80 ? unaLinea : unaLinea[..77] + "…";
     }
 
-    private static Icon CargarIcono()
-    {
-        var ruta = Path.Combine(AppContext.BaseDirectory, "Recursos", "dracpaste.ico");
-        return File.Exists(ruta) ? new Icon(ruta) : SystemIcons.Application;
-    }
+    private static Icon CargarIcono() => IconosDeBandeja.Base;
 
     private void AbrirEmparejamiento()
     {
@@ -218,10 +237,10 @@ internal sealed class ContextoBandeja : ApplicationContext
             return;
         }
 
-        var qr = new DatosQr
+        DatosQr Emitir() => new()
         {
             Pk = Convert.ToBase64String(_identidad.Publica),
-            Ip = ip.ToString(),
+            Ip = AnuncioMdns.IpLocal()?.ToString() ?? ip.ToString(),
             Port = _servidor.Puerto,
             Token = Convert.ToBase64String(_tokens.Emitir()),
             Name = _identidad.Nombre,
@@ -230,7 +249,11 @@ internal sealed class ContextoBandeja : ApplicationContext
 
         // La huella depende de la clave pública del móvil, que todavía no se conoce: se
         // calcula al emparejar y se enseña entonces en el globo de la bandeja.
-        using var ventana = new VentanaEmparejamiento(qr);
+        //
+        // El tercer argumento deja que la ventana pida un código nuevo al caducar el
+        // anterior. No hace falta revocar el viejo a mano: solo se renueva cuando ya ha
+        // caducado, y emitir limpia de paso los caducados.
+        using var ventana = new VentanaEmparejamiento(Emitir(), null, Emitir);
 
         // Al cerrar la ventana, el código deja de valer aunque no haya caducado: quien
         // ha dejado de mirar la pantalla no espera que su QR siga sirviendo.
