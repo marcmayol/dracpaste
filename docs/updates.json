@@ -3,6 +3,6 @@
   "versionName": "1.4",
   "url": "https://github.com/marcmayol/dracpaste/releases/download/v1.4/dracpaste-v1.4.apk",
   "sha256": "a0beabc3b9a704d39a2691133ccaa0cdcf464fea9812f0e27a9f921aa3c0c55a",
-  "notas": "DracPaste 1.4.",
+  "notas": "Rediseño completo, y un botón nuevo en la pantalla principal: «Enviar lo copiado al PC». Con la app abierta sí se puede leer el portapapeles, así que ya no hace falta desplegar la notificación. Además, el título ya no pisa el reloj, y al emparejar hay que confirmar que la huella coincide.",
   "check_horas": 24
 }
