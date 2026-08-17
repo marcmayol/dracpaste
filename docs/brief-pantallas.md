@@ -6,6 +6,15 @@ El logo ya está decidido; esto es la interfaz.
 Todo lo que hay aquí está sacado del código que ya funciona: los textos son literales y las
 medidas son las de verdad. Nada es hipotético.
 
+**Hay capturas reales en [capturas/](capturas/)**, sacadas de mi Pixel y de mi PC:
+`android-principal.png`, `android-ajustes.png`, `android-notificacion.png`,
+`windows-emparejamiento.png` y `windows-ajustes.png`.
+
+Dos avisos sobre ellas: en la de ajustes de Windows pone «Escuchando en el puerto 0» porque
+la ventana se abrió con un servidor de mentira para poder capturarla —en la app real ahí
+sale 47653—, y los colores de los textos en las dos capturas de Windows están alterados por
+el método de captura. Fíate del texto de este documento para los colores, no de los PNG.
+
 ---
 
 Ya tengo la identidad de **DracPaste** y ahora necesito el diseño de sus pantallas. La app
@@ -71,6 +80,11 @@ pantallas más apretadas al 150 %.
 # Pantallas del móvil (Android)
 
 ## 1. Pantalla principal
+
+**Empieza por un fallo que se ve en la captura**: el título «DracPaste» está pisando el
+reloj de la barra de estado. La app dibuja de borde a borde sin respetar los márgenes del
+sistema, y pasa igual en la pantalla de ajustes con el título «Ajustes». Hay que resolverlo,
+y de paso decidir qué hacemos con esa zona: hoy es espacio desperdiciado.
 
 Es una sola columna con desplazamiento vertical, 24 dp de margen, 16 dp entre bloques. De
 arriba abajo:
@@ -168,9 +182,20 @@ nada. La conexión con el PC se mantiene.») y «Avisar al recibir un clip».
 activarlo, y es a propósito.»), «Sin historial», «Sin analíticas».
 
 Ese último bloque **son afirmaciones, no opciones**, y hoy se parecen demasiado a los
-interruptores de arriba: se leen como ajustes apagados. Hay que distinguirlos claramente.
-Es una decisión de producto que quiero que se vea: la app te enseña sus reglas y no te deja
-romperlas.
+interruptores de arriba: se leen como ajustes apagados. La captura lo deja claro — tienen
+el mismo título en negrita y la misma explicación debajo, solo que sin interruptor a la
+derecha. Hay que distinguirlos. Es una decisión de producto que quiero que se vea: la app
+te enseña sus reglas y no te deja romperlas.
+
+Dos cosas más de esta pantalla: **para volver hay que bajar hasta el final del todo**, donde
+hay un enlace «Volver» perdido bajo el último párrafo (no hay barra superior ni flecha
+atrás); y el bloque de batería es un muro de texto en el estado malo, que es justo cuando
+hay que convencer a alguien de tocar un ajuste del sistema.
+
+Nota sobre las capturas del móvil: están en **tema oscuro y con el color dinámico de
+Android activo**, de ahí ese verde menta. No es una decisión de marca: es el fondo de
+pantalla de mi móvil tiñendo la app. Es exactamente la decisión que te pido que tomes más
+arriba.
 
 ---
 
@@ -196,6 +221,22 @@ y toca Enviar».
 
 Botones: **«Enviar portapapeles»** (siempre que haya un PC activo) y **«Pegar»** (solo
 cuando Android no ha dejado escribir en el portapapeles en segundo plano).
+
+**Mira `android-notificacion.png` antes de proponer nada**, porque enseña dos cosas que no
+se deducen del código:
+
+**Está en el cajón de «Silenciadas»**, mezclada con la publicidad de Amazon y con «Cargando
+por USB». Es consecuencia de haberla puesto en prioridad baja y sin sonido, que era lo
+correcto —nadie quiere que su portapapeles pite—, pero el precio es que queda enterrada
+justo debajo de la basura. Si el diseño depende de que la persona vea esta notificación,
+hay que contar con dónde acaba de verdad.
+
+**Colapsada, el texto se corta exactamente donde está la instrucción.** Se lee «Lo del PC
+llega solo · para enviar lo tuyo,…» y ahí muere: la parte que dice qué hacer («despliega y
+toca Enviar») es la que no se ve. Puse un `BigTextStyle` para que al desplegarla se lea
+entera, pero eso solo funciona **si la persona ya sabe que tiene que desplegarla**, que es
+precisamente lo que no sabe. Lo importante tiene que caber en la primera línea, y en esa
+primera línea caben unos 40 caracteres.
 
 Necesito:
 
@@ -255,10 +296,18 @@ De arriba abajo, con las alturas reales de hoy:
 +------------------------------------------+
 ```
 
-El código **caduca a los 30 minutos** y la cuenta atrás va en vivo. Al llegar a cero, el
-texto se pone rojo: «El código ha caducado. Cierra y vuelve a abrir esta ventana.» Ese
-paso de «válido» a «caducado» merece un tratamiento mejor que cambiar una línea a rojo,
-porque un código caducado que parece válido hace perder mucho tiempo (me pasó).
+El código **caduca a los 2 minutos** y la cuenta atrás va en vivo. Al llegar a cero, el
+texto se pone rojo: «El código ha caducado. Cierra y vuelve a abrir esta ventana.»
+
+Dos minutos es poquísimo, y esto es un problema de diseño de verdad, no un detalle: en ese
+tiempo la persona tiene que coger el móvil, abrir DracPaste, encontrar el botón de
+escanear, conceder el permiso de la cámara si es la primera vez, y apuntar. A mí se me
+caducó haciendo justo eso. Como la ventana enseña una cuenta atrás discreta y gris en
+mitad de la pantalla, **un código muerto se parece muchísimo a uno vivo**.
+
+Necesito que el paso de «válido» a «caducado» sea imposible de no ver, y que el estado
+caducado ofrezca la salida (volver a generar) en lugar de mandar a cerrar y reabrir la
+ventana a mano, que es lo que hace hoy.
 
 Ojo con una cosa: al abrir la ventana **la huella todavía no se conoce** (depende de la
 clave del móvil, que llega al emparejar), así que en vez del valor pone «Comprueba la
