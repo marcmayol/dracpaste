@@ -97,28 +97,31 @@ internal static class IconosDeBandeja
 
     private static Icon Dibujar(EstadoBandeja estado, bool barraOscura)
     {
-        // 32 y no 16: Windows escoge el tamaño que necesita, y partir de uno grande deja
-        // mejor resultado al reducir que dibujar directamente en 16.
-        const int lado = 32;
+        // Un icono con varios tamaños dentro, como cualquier .ico del sistema: Windows
+        // coge el que necesita en cada sitio en vez de reescalar uno solo.
+        return IconoCon(new[] { 16, 20, 24, 32, 48 }, lado => Pintar(estado, barraOscura, lado));
+    }
 
+    private static Bitmap Pintar(EstadoBandeja estado, bool barraOscura, int lado)
+    {
         // Sobre barra oscura la silueta va en crema; sobre barra clara, en tinta. El
         // dibujo es plano, así que recolorearlo no le quita nada.
         var silueta = barraOscura ? Color.FromArgb(0xEC, 0xE5, 0xDC) : Color.FromArgb(0x1A, 0x1A, 0x1A);
         var contraria = barraOscura ? Color.FromArgb(0x1A, 0x1A, 0x1A) : Color.White;
 
-        using var lienzo = new Bitmap(lado, lado, PixelFormat.Format32bppArgb);
+        var lienzo = new Bitmap(lado, lado, PixelFormat.Format32bppArgb);
         using (var g = Graphics.FromImage(lienzo))
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
 
             using var original = Base.ToBitmap();
-            Recolorear(
-                g,
-                original,
-                lado,
-                silueta,
-                estado is EstadoBandeja.Conectado or EstadoBandeja.Pausa ? 1f : 0.45f);
+
+            // La silueta va siempre sólida. Antes los estados «sin móvil» y «sin
+            // emparejar» se dibujaban al 45 %, y a 16 px eso no era un dragón atenuado:
+            // era un dragón que no estaba. Lo que distingue los estados es la marca de la
+            // esquina, que es forma y sobrevive a cualquier tamaño.
+            Recolorear(g, original, lado, silueta, 1f);
 
             switch (estado)
             {
@@ -138,7 +141,7 @@ internal static class IconosDeBandeja
             }
         }
 
-        return DesdeMapa(lienzo);
+        return lienzo;
     }
 
     /// <summary>
@@ -226,17 +229,96 @@ internal static class IconosDeBandeja
     /// <see cref="Bitmap.GetHicon"/> reserva un handle del sistema que hay que liberar a
     /// mano; se copia el icono y se suelta enseguida para no ir dejando handles sueltos.
     /// </summary>
-    private static Icon DesdeMapa(Bitmap mapa)
+    /// <summary>
+    /// Monta un icono de verdad, con sus tamaños dentro, escribiendo el formato a mano.
+    ///
+    /// La vía corta —<c>Bitmap.GetHicon()</c> + <c>Icon.FromHandle</c>— no sirve aquí, y
+    /// costó verlo: produce un icono que se pinta bien en una ventana, pero que al pasar
+    /// por el guardado que hace el sistema pierde el canal alfa. En la bandeja eso se
+    /// traduce en un icono roto o en un dragón que sencillamente no está, sin ningún
+    /// error por ninguna parte. Escribiendo el fichero se controla el alfa de cada píxel.
+    /// </summary>
+    private static Icon IconoCon(int[] tamanos, Func<int, Bitmap> pintar)
     {
-        var handle = mapa.GetHicon();
-        try
+        var imagenes = tamanos.Select(lado =>
         {
-            using var temporal = Icon.FromHandle(handle);
-            return (Icon)temporal.Clone();
-        }
-        finally
+            using var mapa = pintar(lado);
+            return (Lado: lado, Datos: ComoDib(mapa));
+        }).ToList();
+
+        using var flujo = new MemoryStream();
+        using (var w = new BinaryWriter(flujo, System.Text.Encoding.UTF8, leaveOpen: true))
         {
-            DestroyIcon(handle);
+            w.Write((ushort)0);                 // reservado
+            w.Write((ushort)1);                 // tipo: icono
+            w.Write((ushort)imagenes.Count);
+
+            var desplazamiento = 6 + 16 * imagenes.Count;
+            foreach (var (lado, datos) in imagenes)
+            {
+                w.Write((byte)lado);
+                w.Write((byte)lado);
+                w.Write((byte)0);               // colores de paleta
+                w.Write((byte)0);               // reservado
+                w.Write((ushort)1);             // planos
+                w.Write((ushort)32);            // bits por píxel
+                w.Write((uint)datos.Length);
+                w.Write((uint)desplazamiento);
+                desplazamiento += datos.Length;
+            }
+
+            foreach (var (_, datos) in imagenes)
+            {
+                w.Write(datos);
+            }
         }
+
+        flujo.Position = 0;
+        return new Icon(flujo);
+    }
+
+    /// <summary>
+    /// Un mapa de bits en el formato que guarda un .ico: cabecera, píxeles BGRA de abajo
+    /// arriba y una máscara AND que con 32 bits no manda, pero tiene que estar.
+    /// </summary>
+    private static byte[] ComoDib(Bitmap mapa)
+    {
+        var lado = mapa.Width;
+        using var flujo = new MemoryStream();
+        using var w = new BinaryWriter(flujo);
+
+        w.Write(40);                            // tamaño de la cabecera
+        w.Write(lado);
+        w.Write(lado * 2);                      // alto doblado: píxeles + máscara
+        w.Write((ushort)1);
+        w.Write((ushort)32);
+        w.Write(0);
+        w.Write(lado * lado * 4);
+        w.Write(0);
+        w.Write(0);
+        w.Write(0);
+        w.Write(0);
+
+        for (var y = lado - 1; y >= 0; y--)
+        {
+            for (var x = 0; x < lado; x++)
+            {
+                var c = mapa.GetPixel(x, y);
+                w.Write(c.B);
+                w.Write(c.G);
+                w.Write(c.R);
+                w.Write(c.A);
+            }
+        }
+
+        var bytesPorFila = (lado + 31) / 32 * 4;
+        var fila = new byte[bytesPorFila];
+        for (var y = 0; y < lado; y++)
+        {
+            w.Write(fila);
+        }
+
+        w.Flush();
+        return flujo.ToArray();
     }
 }
