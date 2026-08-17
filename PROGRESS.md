@@ -1039,6 +1039,28 @@ en bandeja y notificación, que es lo único que sobrevive a 16 px.
   píxeles, con los botones montados sobre su etiqueta. Compilaba y el test de tamaño
   pasaba; ahora el test comprueba también lo que le queda al relleno.
 
+## Por dónde seguir (retomar el 18-ago-2026)
+
+La v1.4 está **publicada**: Release con APK e instalador, manifiesto en Pages sirviendo
+versionCode 5, y el catálogo de DracApps se regenera solo cada 6 h.
+
+Pendiente, por orden de lo que más aporta:
+
+1. **La silueta pequeña del icono**, pedida en `docs/brief-icono-pequeno.md`. A 16 px la
+   cabeza completa sigue siendo una mancha; hace falta un dibujo hecho para ese tamaño. Y
+   con él, el **SVG**: sin vector no hay VectorDrawable de notificación de verdad — el que
+   hay es un PNG que Android aplana.
+2. **Ver la app en tema claro.** Todo lo que se ha mirado hasta ahora ha sido en oscuro,
+   porque es como tiene el móvil el usuario. El claro no lo ha visto nadie, y el diseño
+   define los dos.
+3. **Comprobar el tamaño de fuente al 130 % y al 150 %.** El encargo lo pedía y no se ha
+   hecho: las tarjetas nuevas tienen texto dentro y es justo donde se rompen.
+4. Las pruebas de resistencia que siguen sin hacerse, más abajo: pérdida de WiFi, cambio de
+   red, suspensión del PC, reinicio del móvil, y una noche entera conectado.
+
+Lo que **no** hace falta revisar, porque ya se comprobó: que el servidor suelta la sesión
+vieja al llegar una nueva, y que las reglas del firewall están puestas en este PC.
+
 ## Todavía sin probar
 
 Necesitan tiempo, o gestos que no se pueden automatizar:
