@@ -35,8 +35,31 @@ internal enum EstadoBandeja
 /// </summary>
 internal static class IconosDeBandeja
 {
-    private static readonly Dictionary<EstadoBandeja, Icon> Cache = new();
+    private static readonly Dictionary<(EstadoBandeja, bool), Icon> Cache = new();
     private static Icon? _base;
+
+    /// <summary>
+    /// ¿La barra de tareas es oscura? Windows 11 la pone así de fábrica.
+    ///
+    /// Importa porque la cabeza de Ladón está dibujada en negro: sobre una barra oscura
+    /// desaparece del todo, y el usuario se queda sin saber si la app está corriendo. La
+    /// clave del registro es de solo lectura y no hace falta ningún permiso especial.
+    /// </summary>
+    private static bool BarraOscura()
+    {
+        try
+        {
+            using var clave = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+
+            // 1 = barra clara. Si la clave no está, Windows la trata como clara.
+            return clave?.GetValue("SystemUsesLightTheme") is int valor && valor == 0;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -60,26 +83,29 @@ internal static class IconosDeBandeja
 
     public static Icon Para(EstadoBandeja estado)
     {
-        if (Cache.TryGetValue(estado, out var guardado))
+        var oscura = BarraOscura();
+
+        if (Cache.TryGetValue((estado, oscura), out var guardado))
         {
             return guardado;
         }
 
-        var icono = Dibujar(estado);
-        Cache[estado] = icono;
+        var icono = Dibujar(estado, oscura);
+        Cache[(estado, oscura)] = icono;
         return icono;
     }
 
-    private static Icon Dibujar(EstadoBandeja estado)
+    private static Icon Dibujar(EstadoBandeja estado, bool barraOscura)
     {
-        if (estado == EstadoBandeja.Conectado)
-        {
-            return Base;
-        }
-
         // 32 y no 16: Windows escoge el tamaño que necesita, y partir de uno grande deja
         // mejor resultado al reducir que dibujar directamente en 16.
         const int lado = 32;
+
+        // Sobre barra oscura la silueta va en crema; sobre barra clara, en tinta. El
+        // dibujo es plano, así que recolorearlo no le quita nada.
+        var silueta = barraOscura ? Color.FromArgb(0xEC, 0xE5, 0xDC) : Color.FromArgb(0x1A, 0x1A, 0x1A);
+        var contraria = barraOscura ? Color.FromArgb(0x1A, 0x1A, 0x1A) : Color.White;
+
         using var lienzo = new Bitmap(lado, lado, PixelFormat.Format32bppArgb);
         using (var g = Graphics.FromImage(lienzo))
         {
@@ -87,22 +113,27 @@ internal static class IconosDeBandeja
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
 
             using var original = Base.ToBitmap();
-            DibujarAtenuado(g, original, lado, estado == EstadoBandeja.Pausa ? 1f : 0.45f);
+            Recolorear(
+                g,
+                original,
+                lado,
+                silueta,
+                estado is EstadoBandeja.Conectado or EstadoBandeja.Pausa ? 1f : 0.45f);
 
             switch (estado)
             {
                 case EstadoBandeja.SinEmparejar:
                     // Una interrogación no cabe legible; un hueco redondo sí, y dice
                     // «falta algo» sin depender de leer nada.
-                    DibujarAnillo(g, lado);
+                    DibujarAnillo(g, lado, silueta, contraria);
                     break;
 
                 case EstadoBandeja.SinMovil:
-                    DibujarAspa(g, lado);
+                    DibujarAspa(g, lado, silueta, contraria);
                     break;
 
                 case EstadoBandeja.Pausa:
-                    DibujarPausa(g, lado);
+                    DibujarPausa(g, lado, silueta, contraria);
                     break;
             }
         }
@@ -110,9 +141,25 @@ internal static class IconosDeBandeja
         return DesdeMapa(lienzo);
     }
 
-    private static void DibujarAtenuado(Graphics g, Image original, int lado, float opacidad)
+    /// <summary>
+    /// Pinta la silueta del color indicado, conservando el canal alfa y aplicando la
+    /// opacidad que toque.
+    /// </summary>
+    private static void Recolorear(Graphics g, Image original, int lado, Color color, float opacidad)
     {
-        var matriz = new ColorMatrix { Matrix33 = opacidad };
+        var matriz = new ColorMatrix
+        {
+            // Los tres canales de color se anulan y se sustituyen por el color pedido:
+            // lo único que sobrevive del original es la forma.
+            Matrix00 = 0,
+            Matrix11 = 0,
+            Matrix22 = 0,
+            Matrix33 = opacidad,
+            Matrix40 = color.R / 255f,
+            Matrix41 = color.G / 255f,
+            Matrix42 = color.B / 255f,
+        };
+
         using var atributos = new ImageAttributes();
         atributos.SetColorMatrix(matriz);
 
@@ -128,36 +175,36 @@ internal static class IconosDeBandeja
     }
 
     /// <summary>Un aro hueco en la esquina: hay PC, pero nadie escuchando.</summary>
-    private static void DibujarAnillo(Graphics g, int lado)
+    private static void DibujarAnillo(Graphics g, int lado, Color trazoColor, Color fondoColor)
     {
         var caja = Esquina(lado);
-        using var fondo = new SolidBrush(Color.White);
-        using var trazo = new Pen(Color.Black, lado / 12f);
+        using var fondo = new SolidBrush(fondoColor);
+        using var trazo = new Pen(trazoColor, lado / 12f);
         g.FillEllipse(fondo, caja);
         g.DrawEllipse(trazo, caja);
     }
 
-    private static void DibujarAspa(Graphics g, int lado)
+    private static void DibujarAspa(Graphics g, int lado, Color trazoColor, Color fondoColor)
     {
         var caja = Esquina(lado);
-        using var fondo = new SolidBrush(Color.White);
+        using var fondo = new SolidBrush(fondoColor);
         g.FillEllipse(fondo, caja);
 
-        using var trazo = new Pen(Color.Black, lado / 10f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+        using var trazo = new Pen(trazoColor, lado / 10f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
         var margen = caja.Width * 0.28f;
         g.DrawLine(trazo, caja.Left + margen, caja.Top + margen, caja.Right - margen, caja.Bottom - margen);
         g.DrawLine(trazo, caja.Right - margen, caja.Top + margen, caja.Left + margen, caja.Bottom - margen);
     }
 
-    private static void DibujarPausa(Graphics g, int lado)
+    private static void DibujarPausa(Graphics g, int lado, Color trazoColor, Color fondoColor)
     {
         var caja = Esquina(lado);
-        using var fondo = new SolidBrush(Color.White);
-        using var trazo = new Pen(Color.Black, lado / 16f);
+        using var fondo = new SolidBrush(fondoColor);
+        using var trazo = new Pen(trazoColor, lado / 16f);
         g.FillRectangle(fondo, caja);
         g.DrawRectangle(trazo, caja.X, caja.Y, caja.Width, caja.Height);
 
-        using var barras = new SolidBrush(Color.Black);
+        using var barras = new SolidBrush(trazoColor);
         var ancho = caja.Width / 5f;
         var alto = caja.Height * 0.5f;
         var y = caja.Top + (caja.Height - alto) / 2f;

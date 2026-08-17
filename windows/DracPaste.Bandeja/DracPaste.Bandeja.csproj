@@ -17,11 +17,16 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <!-- El .ico lo genera Recursos-fuente\generar-icono.ps1; se copia junto al exe
-         porque ContextoBandeja lo carga desde disco para el icono de la bandeja. -->
+    <!-- El .ico lo genera Recursos-fuente\Ico.cs (ver el LEEME de esa carpeta); se copia
+         junto al exe porque IconosDeBandeja lo carga desde disco. -->
     <Content Include="Recursos\dracpaste.ico">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
+
+    <!-- Las herramientas que generan los iconos no forman parte de la app: viven en el
+         repo para poder rehacerlos cuando cambie el dibujo, y se compilan aparte. -->
+    <Compile Remove="Recursos-fuente\**" />
+    <None Include="Recursos-fuente\**" />
   </ItemGroup>
 
   <ItemGroup>

@@ -2,5 +2,7 @@
 <resources>
     <color name="drac_verde">#0F3A2E</color>
     <color name="drac_oro">#D9A441</color>
-    <color name="ic_launcher_background">#0F3A2E</color>
+    <!-- Papel: la cabeza de Ladón va en tinta encima. El verde de antes era del tema
+         anterior, y con el dibujo nuevo dejaba la silueta negra sobre un fondo oscuro. -->
+    <color name="ic_launcher_background">#FAF8F4</color>
 </resources>
