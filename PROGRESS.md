@@ -949,7 +949,31 @@ También quedó comprobado, con gestos reales:
 - **Desvincular**: el PC y el móvil se enteran los dos.
 - **Reconexión automática**: «Reconectando» → «Conectado» sola, varias veces.
 
-## Sospecha abierta: el PC no suelta la conexión cuando el móvil se corta en seco
+## Sospecha descartada: el PC sí suelta la conexión (17-ago-2026)
+
+**Resuelta el mismo día: era ruido de mis pruebas, no un fallo.** Se deja escrita porque
+el síntoma asusta y es fácil volver a tropezar con él.
+
+`ServidorDracPaste.AtenderSesionAsync` ya hace lo correcto cuando llega una conexión nueva
+teniendo una sesión viva:
+
+```csharp
+// Si ya había una sesión, esta la sustituye: el móvil ha reconectado y la
+// anterior es un socket zombi que nadie va a cerrar desde el otro lado.
+_sesion?.Cerrar();
+```
+
+Y el `finally` solo limpia el estado si la sesión que termina sigue siendo la actual
+(`ReferenceEquals`), así que el relevo no se pisa a sí mismo.
+
+Los `EOFException` del móvil venían de que yo estaba **cerrando y relanzando el ejecutable
+del PC** entre prueba y prueba: el móvil reintentaba contra un servidor que se estaba
+apagando. Ninguna persona hace eso; yo lo hice diez veces en una hora.
+
+La lección: un log de errores recogido mientras uno reinicia cosas no prueba nada. Antes de
+declarar un fallo hay que reproducirlo sin tocar nada más.
+
+## La sospecha, tal como se registró
 
 Probando el envío móvil → PC el 17-ago-2026, todos los intentos fallaron con esto en el
 móvil:
@@ -977,6 +1001,43 @@ vieja, porque la vieja ya no puede estar viva.
 
 Queda como sospecha y no como fallo confirmado porque llegó entre pruebas en las que yo
 había hecho varios `force-stop` seguidos, que no es el uso normal de nadie.
+
+## El rediseño — 17-ago-2026
+
+Claude Design entregó identidad y pantallas (todo en `design-handoff/`). Se implementó en
+tres tandas: los cambios de comportamiento, la paleta, y los iconos.
+
+**Comportamiento.** El botón «Enviar lo copiado al PC» en la pantalla principal es la pieza
+que resuelve la asimetría: con la app en primer plano **sí hay foco**, así que leer el
+portapapeles es legal y no hace falta la activity invisible. Además: los insets del sistema
+(el título pisaba el reloj), la confirmación de huella con «No coinciden» que desempareja de
+verdad, el código de emparejamiento que se renueva solo al caducar, el aviso del firewall
+como panel dentro de la ventana, y el icono de bandeja distinto por estado.
+
+**Paleta.** Papel y tinta con terracota, en los dos lados. El terracota solo marca acciones,
+nunca estado, porque el icono de bandeja es monocromo y allí el color no existe. Sin color
+dinámico dentro de la app: la pantalla de la huella tiene que verse igual en el móvil, en el
+PC y en una captura que alguien mande pidiendo ayuda.
+
+**Iconos.** El logo entero en el lanzador y de 48 px en adelante en el `.ico`; la cabeza sola
+en bandeja y notificación, que es lo único que sobrevive a 16 px.
+
+### Lo que costó, por si vuelve a pasar
+
+- **El `.ico` con PNG dentro se ve como ruido de colores.** El formato los admite desde
+  Vista, pero GDI+ los interpreta como DIB igualmente. Van como DIB… salvo el de 256, que
+  **tiene** que ir en PNG: un DIB de ese tamaño ocupa 256 KB y hace que algunos cargadores
+  descarten el fichero entero.
+- **`GetHicon()` + `Icon.FromHandle` + `Clone()` no sirve para la bandeja.** El clon apunta
+  al mismo handle, así que al destruirlo la bandeja pinta el icono de error. Y aunque se
+  arregle eso, ese camino pierde el canal alfa al pasar por el guardado del sistema: el
+  dragón desaparecía y quedaban solo las marcas de estado flotando.
+- **En barra de tareas oscura una silueta negra es invisible**, y Windows 11 la pone oscura
+  de fábrica. Se lee el tema del registro y se pinta en crema o en tinta.
+- **Añadir bloques a una ventana de altura fija deja sin sitio al que rellena el hueco.** El
+  aviso de firewall y la barra de caducidad dejaron la caja del texto alternativo en cero
+  píxeles, con los botones montados sobre su etiqueta. Compilaba y el test de tamaño
+  pasaba; ahora el test comprueba también lo que le queda al relleno.
 
 ## Todavía sin probar
 

@@ -43,8 +43,8 @@ android {
         minSdk = 29
         targetSdk = 35
         // El versionCode sube de uno en uno y es lo único que mira el actualizador.
-        versionCode = 4
-        versionName = "1.3"
+        versionCode = 5
+        versionName = "1.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
