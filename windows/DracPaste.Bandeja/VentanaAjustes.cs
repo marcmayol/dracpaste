@@ -118,7 +118,7 @@ internal sealed class VentanaAjustes : Form
             Dock = DockStyle.Bottom,
             Height = 40,
             Padding = new Padding(16, 8, 16, 0),
-            ForeColor = Color.DimGray,
+            ForeColor = Paleta.Apagado,
         };
 
         var marco = new Panel { Dock = DockStyle.Fill, Padding = new Padding(16, 8, 16, 8) };
@@ -155,7 +155,7 @@ internal sealed class VentanaAjustes : Form
         if (_lista.Items.Count == 0)
         {
             var vacio = new ListViewItem("Ningún móvil emparejado todavía");
-            vacio.ForeColor = Color.DimGray;
+            vacio.ForeColor = Paleta.Apagado;
             _lista.Items.Add(vacio);
         }
     }

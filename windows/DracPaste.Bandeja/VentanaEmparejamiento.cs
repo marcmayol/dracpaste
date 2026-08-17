@@ -48,7 +48,7 @@ internal sealed class VentanaEmparejamiento : Form
         MaximizeBox = false;
         MinimizeBox = false;
         StartPosition = FormStartPosition.CenterScreen;
-        BackColor = Color.White;
+        BackColor = Paleta.Papel;
 
         // La ventana crece con lo que se le añade en vez de repartir 620 px fijos entre
         // más cosas: la primera versión de esto dejó la caja del texto alternativo sin
@@ -77,7 +77,7 @@ internal sealed class VentanaEmparejamiento : Form
             SizeMode = PictureBoxSizeMode.Zoom,
             Dock = DockStyle.Top,
             Height = 320,
-            BackColor = Color.White,
+            BackColor = Paleta.Tarjeta,
         };
 
         var hayHuella = !string.IsNullOrWhiteSpace(huella);
@@ -103,7 +103,7 @@ internal sealed class VentanaEmparejamiento : Form
             // se comía la cuenta atrás de debajo.
             Height = 28,
             TextAlign = ContentAlignment.MiddleCenter,
-            ForeColor = Color.DimGray,
+            ForeColor = Paleta.Apagado,
         };
 
         _caducaEn = DateTime.UtcNow.AddMilliseconds(Protocolo.Protocolo.ValidezTokenMs);
@@ -112,7 +112,7 @@ internal sealed class VentanaEmparejamiento : Form
             Dock = DockStyle.Top,
             Height = 24,
             TextAlign = ContentAlignment.MiddleCenter,
-            ForeColor = Color.DimGray,
+            ForeColor = Paleta.Apagado,
         };
 
         // Una barra que se vacía se ve sin leer; la cuenta atrás en texto, en gris y en
@@ -134,7 +134,7 @@ internal sealed class VentanaEmparejamiento : Form
             ScrollBars = ScrollBars.Vertical,
             Dock = DockStyle.Fill,
             Font = new Font(FontFamily.GenericMonospace, 8f),
-            BackColor = Color.WhiteSmoke,
+            BackColor = Paleta.Papel,
             BorderStyle = BorderStyle.FixedSingle,
             // Sin esto, el texto aparece resaltado en azul al abrirse la ventana, como si
             // el usuario ya lo hubiera seleccionado.
@@ -170,7 +170,7 @@ internal sealed class VentanaEmparejamiento : Form
             Dock = DockStyle.Top,
             Height = 22,
             Padding = new Padding(16, 0, 0, 0),
-            ForeColor = Color.DimGray,
+            ForeColor = Paleta.Apagado,
         };
 
         // Con Dock.Top, el último que se añade es el que queda más arriba.
@@ -211,7 +211,7 @@ internal sealed class VentanaEmparejamiento : Form
         {
             Dock = DockStyle.Top,
             Height = 74,
-            BackColor = Color.FromArgb(250, 241, 236),
+            BackColor = Paleta.PeligroSuave,
             Padding = new Padding(16, 8, 16, 8),
             // null = no se ha podido averiguar; callar es mejor que una alarma falsa.
             Visible = Cortafuegos.HayReglaDeEntrada() == false,
@@ -230,7 +230,7 @@ internal sealed class VentanaEmparejamiento : Form
             Text = "El firewall va a bloquear al móvil: verá este PC, pero la conexión morirá "
                    + "en un tiempo de espera.",
             Dock = DockStyle.Fill,
-            ForeColor = Color.FromArgb(140, 47, 16),
+            ForeColor = Paleta.Peligro,
             Font = new Font(FontFamily.GenericSansSerif, 8.5f, FontStyle.Bold),
         };
 
@@ -266,7 +266,7 @@ internal sealed class VentanaEmparejamiento : Form
         }
 
         _caducidad.Text = $"El código caduca en {quedan.Minutes}:{quedan.Seconds:D2} · se renueva solo";
-        _caducidad.ForeColor = Color.DimGray;
+        _caducidad.ForeColor = Paleta.Apagado;
 
         // El valor se recorta al máximo: entre el tick de un segundo y el reloj real hay
         // milisegundos de diferencia, y pasarse hace que ProgressBar lance.
@@ -285,7 +285,7 @@ internal sealed class VentanaEmparejamiento : Form
             _cuentaAtras.Stop();
             _barra.Value = 0;
             _caducidad.Text = "El código ha caducado. Cierra y vuelve a abrir esta ventana.";
-            _caducidad.ForeColor = Color.Firebrick;
+            _caducidad.ForeColor = Paleta.Peligro;
             Caducado?.Invoke();
             return;
         }

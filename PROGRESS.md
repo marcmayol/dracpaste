@@ -949,6 +949,35 @@ También quedó comprobado, con gestos reales:
 - **Desvincular**: el PC y el móvil se enteran los dos.
 - **Reconexión automática**: «Reconectando» → «Conectado» sola, varias veces.
 
+## Sospecha abierta: el PC no suelta la conexión cuando el móvil se corta en seco
+
+Probando el envío móvil → PC el 17-ago-2026, todos los intentos fallaron con esto en el
+móvil:
+
+```
+D/DracPaste.Cliente: Conexión fallida contra 192.168.1.140:47653
+D/DracPaste.Cliente: java.io.EOFException: La conexión se cerró tras 0 de 4 bytes
+```
+
+Y a la vez, en el PC:
+
+```
+TCP  192.168.1.140:47653  192.168.1.146:35994  ESTABLISHED  8904
+```
+
+Es decir: el servidor **acepta la conexión nueva y la cierra sin decir nada**, mientras
+mantiene viva una anterior. La hipótesis es que un `am force-stop` del móvil —o cualquier
+corte brusco: apagar el WiFi, quedarse sin batería— deja el socket a medio cerrar en el
+PC, que sigue creyendo que tiene un móvil conectado y rechaza al que vuelve.
+
+Si se confirma, importa: no es un caso de laboratorio, es lo que pasa cuando el móvil se
+queda sin cobertura. Habría que comprobar qué hace el servidor cuando llega una conexión
+nueva de un dispositivo que ya tiene sesión: lo razonable es que la nueva sustituya a la
+vieja, porque la vieja ya no puede estar viva.
+
+Queda como sospecha y no como fallo confirmado porque llegó entre pruebas en las que yo
+había hecho varios `force-stop` seguidos, que no es el uso normal de nadie.
+
 ## Todavía sin probar
 
 Necesitan tiempo, o gestos que no se pueden automatizar:

@@ -10,7 +10,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
@@ -50,6 +53,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -230,11 +234,17 @@ private fun Pantalla(actualizador: Actualizador) {
             .padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("DracPaste", style = MaterialTheme.typography.headlineMedium)
+        Cabecera()
         Text(
             "Tu portapapeles compartido con el PC, sin nube y sin cuenta.",
             style = MaterialTheme.typography.bodyMedium,
+            color = ColoresDrac.apagado,
         )
+
+        // Las tres promesas suben aquí, donde se leen antes de emparejar nada. Antes eran
+        // un párrafo en letra pequeña al final de la pantalla, que es donde no lo lee
+        // nadie; la frase legal completa vive ahora en Ajustes.
+        ChipsDePromesa()
 
         BannerActualizacion(
             estado = estadoActualizacion,
@@ -252,25 +262,31 @@ private fun Pantalla(actualizador: Actualizador) {
             // abrir una activity invisible para conseguir el foco; desde esta pantalla no
             // hace falta nada de eso.
             pcs.firstOrNull { it.activo }?.let { activo ->
-                Card(modifier = Modifier.fillMaxWidth()) {
+                // Tarjeta de acento entera, no un botón dentro de una tarjeta: esta es LA
+                // acción de la app, la que convierte la dirección incómoda en algo que se
+                // ve nada más abrir.
+                Surface(
+                    onClick = { if (!trabajando) enviarLoCopiado() },
+                    shape = RoundedCornerShape(16.dp),
+                    color = ColoresDrac.acento,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(18.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
-                        Text("Enviar lo copiado al PC", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "Lo que copies en el PC llega solo. Al revés no: Android no deja " +
-                                "leer el portapapeles a una app que no estás mirando, así que " +
-                                "lo tuyo sale con un toque.",
-                            style = MaterialTheme.typography.bodySmall,
+                            "Enviar lo copiado al PC",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = ColoresDrac.sobreAcento,
                         )
-                        Button(
-                            onClick = { enviarLoCopiado() },
-                            enabled = !trabajando,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text("Enviar a ${activo.nombre}")
-                        }
+                        Text(
+                            "móvil ─ ─[ toque ]──▶ ${activo.nombre}",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = ColoresDrac.sobreAcento,
+                        )
                     }
                 }
             }
@@ -285,29 +301,54 @@ private fun Pantalla(actualizador: Actualizador) {
                 alDesemparejar = { aDesemparejar = it },
             )
 
-            HorizontalDivider()
+            // La tarjeta que enseña el modelo entero antes del primer uso: los dos
+            // carriles, el de arriba solo y el de abajo atravesando un botón.
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = ColoresDrac.tarjeta,
+                border = BorderStroke(2.dp, ColoresDrac.tinta),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    if (pcs.isEmpty()) {
+                        DosCarriles(nombrePc = null)
+                        Text(
+                            "Empareja tu PC una vez y lo que copies allí aparecerá aquí.",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    } else {
+                        Text("Emparejar otro PC", style = MaterialTheme.typography.titleMedium)
+                    }
 
-            Text("Emparejar un PC", style = MaterialTheme.typography.titleMedium)
+                    Button(
+                        onClick = { pedirCamaraOEscanear(contexto, pedirCamara::launch) { escaneando = true } },
+                        enabled = !trabajando,
+                        shape = RoundedCornerShape(99.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Escanear el código del PC")
+                    }
+
+                    TextButton(
+                        onClick = { mostrandoTextoManual = !mostrandoTextoManual },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            if (mostrandoTextoManual) "Ocultar el texto" else "La cámara no funciona: pegar el texto",
+                            color = ColoresDrac.apagado,
+                        )
+                    }
+                }
+            }
+
             Text(
-                "En el PC, abre DracPaste desde la bandeja y pulsa «Emparejar un móvil». " +
-                    "Después, apunta con la cámara al código que aparece.",
+                "En el PC, abre DracPaste desde la bandeja y pulsa «Emparejar un móvil».",
                 style = MaterialTheme.typography.bodySmall,
+                color = ColoresDrac.apagado,
             )
-
-            Button(
-                onClick = { pedirCamaraOEscanear(contexto, pedirCamara::launch) { escaneando = true } },
-                enabled = !trabajando,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Escanear el código del PC")
-            }
-
-            TextButton(
-                onClick = { mostrandoTextoManual = !mostrandoTextoManual },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(if (mostrandoTextoManual) "Ocultar el texto" else "La cámara no funciona: pegar el texto")
-            }
 
             if (mostrandoTextoManual) {
                 OutlinedTextField(
@@ -350,17 +391,21 @@ private fun Pantalla(actualizador: Actualizador) {
             }
         }
 
-        HorizontalDivider()
+        HorizontalDivider(color = ColoresDrac.linea)
 
-        TextButton(onClick = { enAjustes = true }, modifier = Modifier.fillMaxWidth()) {
-            Text("Ajustes y batería")
+        // Fila con la flecha, no un botón centrado: es una puerta a otra pantalla.
+        // La frase legal completa se ha mudado ahí dentro, junto a las demás reglas.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { enAjustes = true }
+                .padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Ajustes y batería", style = MaterialTheme.typography.bodyLarge)
+            Spacer(modifier = Modifier.weight(1f))
+            Text("›", style = MaterialTheme.typography.titleLarge, color = ColoresDrac.apagado)
         }
-
-        Text(
-            "DracPaste no envía nada fuera de tu red local, no guarda historial y nunca " +
-                "sincroniza lo que copies desde un gestor de contraseñas.",
-            style = MaterialTheme.typography.bodySmall,
-        )
     }
 
     recienEmparejado?.let { pc ->
@@ -463,36 +508,68 @@ private fun SeccionPcs(
     alDesemparejar: (PcEmparejado) -> Unit,
 ) {
     if (pcs.isEmpty()) {
-        Text("Ningún PC emparejado", style = MaterialTheme.typography.titleMedium)
         return
     }
-
-    Text("PCs emparejados", style = MaterialTheme.typography.titleMedium)
 
     if (pcs.size > 1) {
         Text(
             "Los clips van solo al PC activo.",
             style = MaterialTheme.typography.bodySmall,
+            color = ColoresDrac.apagado,
         )
     }
 
     pcs.forEach { pc ->
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(pc.nombre, style = MaterialTheme.typography.titleSmall)
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = if (pc.activo) ColoresDrac.tarjeta else ColoresDrac.papel,
+            // El activo se distingue por el grosor del borde, no solo por la etiqueta: es
+            // el único que recibe los clips y tiene que verse sin leer.
+            border = BorderStroke(
+                if (pc.activo) 3.dp else 2.dp,
+                if (pc.activo) ColoresDrac.tinta else ColoresDrac.linea,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        pc.nombre,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    if (pc.activo) {
+                        Spacer(modifier = Modifier.weight(1f))
+                        EtiquetaDestinoActivo()
+                    }
+                }
+
                 Text(
                     "Huella ${pc.huella}",
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                     fontFamily = FontFamily.Monospace,
+                    color = ColoresDrac.apagado,
                 )
 
+                if (pc.activo) {
+                    Carril(
+                        origen = "PC",
+                        destino = "móvil",
+                        nota = "llega solo",
+                        conBoton = false,
+                    )
+                }
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (pc.activo) {
-                        Text("Destino activo", style = MaterialTheme.typography.labelMedium)
-                    } else {
+                    if (!pc.activo) {
                         TextButton(onClick = { alActivar(pc) }) { Text("Usar este PC") }
                     }
-                    TextButton(onClick = { alDesemparejar(pc) }) { Text("Desemparejar") }
+                    TextButton(onClick = { alDesemparejar(pc) }) {
+                        Text("Desemparejar", color = ColoresDrac.apagado)
+                    }
                 }
             }
         }

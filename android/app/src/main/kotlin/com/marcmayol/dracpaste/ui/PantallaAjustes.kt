@@ -5,14 +5,22 @@ import android.content.Intent
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Card
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -24,7 +32,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.marcmayol.dracpaste.datos.Preferencias
 import com.marcmayol.dracpaste.servicio.ServicioDracPaste
 
@@ -51,7 +65,18 @@ fun PantallaAjustes(alVolver: () -> Unit) {
         modifier = Modifier.padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text("Ajustes", style = MaterialTheme.typography.headlineSmall)
+        // Con la flecha arriba: el enlace «Volver» estaba al final del todo, así que para
+        // salir de aquí había que bajar por toda la pantalla.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { alVolver() },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text("‹", style = MaterialTheme.typography.headlineMedium)
+            Text("Ajustes y batería", style = MaterialTheme.typography.headlineSmall)
+        }
 
         AjusteConInterruptor(
             titulo = "Pausar la sincronización",
@@ -78,29 +103,48 @@ fun PantallaAjustes(alVolver: () -> Unit) {
 
         Text("Que el servicio no muera", style = MaterialTheme.typography.titleMedium)
 
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = if (exento) ColoresDrac.tarjeta else ColoresDrac.papel,
+            // En rojo solo cuando hay algo que arreglar. Cuando está bien no hace falta
+            // llamar la atención: se dice y punto.
+            border = BorderStroke(2.dp, if (exento) ColoresDrac.linea else ColoresDrac.peligro),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 Text(
                     if (exento) "Batería: sin restricciones ✓" else "Batería: con restricciones",
                     style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = if (exento) ColoresDrac.tinta else ColoresDrac.peligro,
                 )
                 Text(
+                    // Una frase, y la que duele. El párrafo anterior explicaba el consumo
+                    // de batería antes de decir qué se rompe, y para cuando llegabas a lo
+                    // importante ya habías dejado de leer.
                     if (exento) {
                         "Android no matará la conexión por ahorro de batería."
                     } else {
-                        "Android puede cortar la conexión con la pantalla apagada. " +
-                            "DracPaste necesita esta excepción para que el portapapeles siga " +
-                            "sincronizado en segundo plano; el consumo real es mínimo porque no " +
-                            "hace nada mientras no copies."
+                        "Android puede matar la conexión cuando apagues la pantalla."
                     },
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodyMedium,
                 )
 
                 if (!exento) {
-                    TextButton(onClick = {
-                        pedirExencionDeBateria(contexto)
-                        exento = tieneExencionDeBateria(contexto)
-                    }) {
+                    Button(
+                        onClick = {
+                            pedirExencionDeBateria(contexto)
+                            exento = tieneExencionDeBateria(contexto)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = ColoresDrac.peligro,
+                            contentColor = ColoresDrac.papel,
+                        ),
+                        shape = RoundedCornerShape(99.dp),
+                    ) {
                         Text("Quitar las restricciones")
                     }
                 }
@@ -130,16 +174,32 @@ fun PantallaAjustes(alVolver: () -> Unit) {
             }
         }
 
-        HorizontalDivider()
+        HorizontalDivider(color = ColoresDrac.linea)
 
-        Text("Cómo funciona", style = MaterialTheme.typography.titleMedium)
-        ValorFijo("Solo red local", "v1 no tiene servidores ni relay: si no estáis en la misma red, no hay sincronización.")
-        ValorFijo("Cifrado de extremo a extremo", "Siempre, también dentro de tu red. Claves nuevas en cada conexión.")
-        ValorFijo("Clips sensibles", "Nunca se sincronizan. No hay forma de activarlo, y es a propósito.")
-        ValorFijo("Sin historial", "DracPaste no guarda lo que copias en ningún sitio.")
-        ValorFijo("Sin analíticas", "No hay nada que enviar porque no hay a dónde enviarlo.")
+        // Estas cinco no son ajustes apagados: son las reglas de la app, y no hay forma de
+        // tocarlas. Antes se veían igual que los interruptores de arriba —mismo título en
+        // negrita, misma explicación debajo— y se leían como opciones desactivadas.
+        Text(
+            "LAS REGLAS DE LA CASA · NO SE PUEDEN TOCAR",
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontFamily = FontFamily.Monospace,
+                letterSpacing = 1.sp,
+            ),
+            color = ColoresDrac.apagado,
+        )
 
-        TextButton(onClick = alVolver) { Text("Volver") }
+        Regla("Solo red local", "v1 no tiene servidores ni relay: si no estáis en la misma red, no hay sincronización.")
+        Regla("Cifrado de extremo a extremo", "Siempre, también dentro de tu red. Claves nuevas en cada conexión.")
+        Regla("Clips sensibles", "Nunca se sincronizan. No hay opción para activarlo. A propósito.")
+        Regla("Sin historial", "DracPaste no guarda lo que copias en ningún sitio.")
+        Regla("Sin analíticas", "No hay nada que enviar porque no hay a dónde enviarlo.")
+
+        Text(
+            "DracPaste no envía nada fuera de tu red local, no guarda historial de clips y " +
+                "no recoge ninguna estadística.",
+            style = MaterialTheme.typography.bodySmall,
+            color = ColoresDrac.apagado,
+        )
     }
 }
 
@@ -162,11 +222,27 @@ private fun AjusteConInterruptor(
     }
 }
 
+/**
+ * Una regla de la casa: prosa corrida con un cuadrado delante, para que no se confunda con
+ * el par título/subtítulo de los ajustes de arriba.
+ */
 @Composable
-private fun ValorFijo(titulo: String, explicacion: String) {
-    Column {
-        Text(titulo, style = MaterialTheme.typography.titleSmall)
-        Text(explicacion, style = MaterialTheme.typography.bodySmall)
+private fun Regla(titulo: String, explicacion: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(
+            modifier = Modifier
+                .padding(top = 6.dp)
+                .size(8.dp)
+                .background(ColoresDrac.tinta),
+        )
+        Text(
+            buildAnnotatedString {
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(titulo) }
+                append(" — ")
+                append(explicacion)
+            },
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 
