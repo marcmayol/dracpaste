@@ -11,9 +11,13 @@
 ; saltarse. Como esto se distribuye fuera de la Store, es la unica via practica.
 
 #define MiApp "DracPaste"
-; Debe coincidir con el versionName de android/app/build.gradle.kts: las dos mitades se
-; publican juntas en la misma Release y tener versiones distintas solo confunde.
-#define MiVersion "1.3"
+; La version la pasa scripts\publicar-windows.ps1 con /DMiVersion, sacandola del csproj.
+; El valor de aqui es solo el respaldo para compilar el .iss a mano, y por eso conviene
+; no fiarse de el: cuando estaba escrito aqui como unica fuente, se subio el proyecto a
+; 1.4 y el instalador siguio saliendo con el 1.3 en su propio nombre.
+#ifndef MiVersion
+  #define MiVersion "1.4"
+#endif
 #define MiAutor "marcmayol.com"
 #define MiEjecutable "DracPaste.exe"
 

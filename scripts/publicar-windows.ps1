@@ -63,7 +63,19 @@ if (-not $iscc) {
 }
 
 Write-Host "== Compilando el instalador ==" -ForegroundColor Cyan
-& $iscc "$raiz\windows\instalador\DracPaste.iss"
+
+# La version se saca del csproj y se le pasa al .iss. Antes estaba escrita a mano dentro
+# del .iss, y pasa lo que tenia que pasar: se subio la version del proyecto a 1.4 y el
+# instalador siguio saliendo como 1.3, con el numero equivocado en su propio nombre.
+$csproj = Join-Path $raiz "windows\DracPaste.Bandeja\DracPaste.Bandeja.csproj"
+$version = ([xml](Get-Content $csproj)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+if (-not $version) { Write-Error "No se encuentra <Version> en el csproj"; exit 1 }
+
+# 1.4.0 -> 1.4: el instalador usa el mismo numero que la Release y el manifiesto.
+$corta = ($version -split "\.")[0..1] -join "."
+Write-Host "Version del instalador: $corta"
+
+& $iscc "/DMiVersion=$corta" "$raiz\windows\instalador\DracPaste.iss"
 if ($LASTEXITCODE -ne 0) { Write-Error "Fallo la compilacion del instalador"; exit 1 }
 
 Get-ChildItem "$raiz\dist" -Filter "*.exe" | ForEach-Object {
